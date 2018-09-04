@@ -47,6 +47,16 @@ let asm_imm i =
     else reverse_string (Printf.sprintf "%08x" ii)
   with Failure _ -> "????????"
 
+let asm_imm64 i = (* FIXME: Will not work correctly for full 64 bit values *)
+  try
+    let ii = 
+      if i.[0] = '$' then int_of_string (String.sub i 1 ((String.length i) - 1)) 
+      else int_of_string i 
+    in
+    if ii < 0 then reverse_string (Printf.sprintf "%016x" (ii))
+    else reverse_string (Printf.sprintf "%016x" ii)
+  with Failure _ -> "????????????????"
+
 let asm_cond c =
   let open Ast in
   match c with
@@ -63,10 +73,10 @@ let asm_cond c =
 
 let asm_sh sh =
   match sh with
-  | "1" -> "8"
-  | "2" -> "9"
-  | "4" -> "A"
-  | "8" -> "B"
+  | "1" -> "0"
+  | "2" -> "1"
+  | "4" -> "2"
+  | "8" -> "3"
   | _ -> "?"
 
 let asm_mem env m =
@@ -80,49 +90,51 @@ let assemble_line env line : assem =
   | Ok(insn) -> begin
       let gen l : assem = Assembly ("?", (String.concat "" l), insn) in
       match insn with
-        (* 1 byte insn: *)
+        (* operations without or with implicit registers: 1 byte encoding: *)
       | Ctl1(RET,_) ->                             gen ["0"; "0"]
 
-        (* 2 byte insn: *)
+        (* alu/move reg/reg operations, 2 byte encoding: *)
       | Alu2(ADD,Reg(rs),Reg(rd)) ->               gen ["1"; "0"; asm_reg rd; asm_reg rs]
       | Alu2(SUB,Reg(rs),Reg(rd)) ->               gen ["1"; "1"; asm_reg rd; asm_reg rs] 
       | Alu2(AND,Reg(rs),Reg(rd)) ->               gen ["1"; "2"; asm_reg rd; asm_reg rs]
       | Alu2(OR,Reg(rs),Reg(rd)) ->                gen ["1"; "3"; asm_reg rd; asm_reg rs]
       | Alu2(XOR,Reg(rs),Reg(rd)) ->               gen ["1"; "4"; asm_reg rd; asm_reg rs]
       | Alu2(MUL,Reg(rs),Reg(rd)) ->               gen ["1"; "5"; asm_reg rd; asm_reg rs]
-      | Alu2(LEA,Ea1(rs),Reg(rd)) ->               gen ["1"; "6"; asm_reg rd; asm_reg rs]
-      | Move2(MOV,Reg(rs),Reg(rd)) ->              gen ["1"; "7"; asm_reg rd; asm_reg rs]
-      | Move2(MOV,Ea1(rs),Reg(rd)) ->              gen ["1"; "8"; asm_reg rd; asm_reg rs]
-      | Move2(MOV,Reg(rd),Ea1(rs)) ->              gen ["1"; "9"; asm_reg rd; asm_reg rs]
+      | Move2(MOV,Reg(rs),Reg(rd)) ->              gen ["2"; "0"; asm_reg rd; asm_reg rs]
+      | Move2(MOV,Ea1(rs),Reg(rd)) ->              gen ["2"; "0"; asm_reg rd; asm_reg rs]
+      | Move2(MOV,Reg(rd),Ea1(rs)) ->              gen ["2"; "0"; asm_reg rd; asm_reg rs]
 
-        (* 3 byte insn: *)
-      | Alu2(LEA,Ea2(rs,rz),Reg(rd)) ->            gen ["2"; "8"; asm_reg rd; asm_reg rs; asm_reg rz; "0"]
-      | Alu2(LEA,Ea3(rs,rz,sh),Reg(rd)) ->         gen ["2"; asm_sh sh; asm_reg rd; asm_reg rs; asm_reg rz; "0"]
+        (* Lea without immediates: 2 + 3 byte encoding: *)
+      | Alu2(LEA,Ea1(rs),Reg(rd)) ->               gen ["3"; "0"; asm_reg rd; asm_reg rs]
+      | Alu2(LEA,Ea2(rs,rz),Reg(rd)) ->            gen ["3"; "1"; asm_reg rd; asm_reg rs; asm_reg rz; "0"]
+      | Alu2(LEA,Ea3(rs,rz,sh),Reg(rd)) ->         gen ["3"; "2"; asm_reg rd; asm_reg rs; asm_reg rz; asm_sh sh]
 
-        (* 5 byte insn: *)
-      | Alu2(ADD,Imm(i),Reg(rd)) ->                gen ["3"; asm_reg rd; asm_imm i]
-      | Alu2(SUB,Imm(i),Reg(rd)) ->                gen ["4"; asm_reg rd; asm_imm i]
-      | Alu2(AND,Imm(i),Reg(rd)) ->                gen ["5"; asm_reg rd; asm_imm i]
-      | Alu2(OR,Imm(i),Reg(rd)) ->                 gen ["6"; asm_reg rd; asm_imm i]
-      | Alu2(XOR,Imm(i),Reg(rd)) ->                gen ["7"; asm_reg rd; asm_imm i]
-      | Alu2(MUL,Imm(i),Reg(rd)) ->                gen ["8"; asm_reg rd; asm_imm i]
-      | Ctl2(CALL,Mem(d),_) ->                     gen ["9"; "0"; asm_mem env d]
-      | Ctl1(JMP,Mem(d)) ->                        gen ["9"; "1"; asm_mem env d]
-      | Move2(MOV,Imm(i),Reg(rd)) ->               gen ["A"; asm_reg rd; asm_imm i]
+        (* alu/move immediate/reg operations: 6 byte encoding: *)
+      | Alu2(ADD,Imm(i),Reg(rd)) ->                gen ["4"; "0"; asm_reg rd; "0"; asm_imm i]
+      | Alu2(SUB,Imm(i),Reg(rd)) ->                gen ["4"; "1"; asm_reg rd; "0"; asm_imm i]
+      | Alu2(AND,Imm(i),Reg(rd)) ->                gen ["4"; "2"; asm_reg rd; "0"; asm_imm i]
+      | Alu2(OR,Imm(i),Reg(rd)) ->                 gen ["4"; "3"; asm_reg rd; "0"; asm_imm i]
+      | Alu2(XOR,Imm(i),Reg(rd)) ->                gen ["4"; "4"; asm_reg rd; "0"; asm_imm i]
+      | Alu2(MUL,Imm(i),Reg(rd)) ->                gen ["4"; "5"; asm_reg rd; "0"; asm_imm i]
+      | Move2(MOV,Imm(i),Reg(rd)) ->               gen ["5"; "0"; asm_reg rd; "0"; asm_imm i]
+      | Move2(MOV,Ea1b(i,rs),Reg(rd)) ->           gen ["5"; "1"; asm_reg rd; asm_reg rs; asm_imm i]
+      | Move2(MOV,Reg(rd),Ea1b(i,rs)) ->           gen ["5"; "2"; asm_reg rd; asm_reg rs; asm_imm i]
 
-        (* 6 byte insn: *)
-      | Alu2(LEA,Mem(m),Reg(rd)) ->                gen ["B"; "0"; asm_reg rd; "0"; asm_mem env m]
-      | Alu2(LEA,Ea1b(i,rs),Reg(rd)) ->            gen ["C"; "0"; asm_reg rd; asm_reg rs; asm_imm i]
-      | Alu2(LEA,Ea2b(i,rs,rz),Reg(rd)) ->         gen ["C"; "8"; asm_reg rd; asm_reg rs; asm_reg rz; "0"; asm_imm i]
-      | Alu2(LEA,Ea3b(i,rs,rz,sh),Reg(rd)) ->      gen ["C"; asm_sh sh; asm_reg rd; asm_reg rs; asm_reg rz; "0"; asm_imm i]
-      | Ctl3(CBcc(cond),Reg(rs),Reg(rd),Mem(m)) -> gen ["D"; asm_cond cond; asm_reg rd; asm_reg rs; asm_mem env m]
-      | Move2(MOV,Ea1b(i,rs),Reg(rd)) ->           gen ["E"; "0"; asm_reg rd; asm_reg rs; asm_imm i]
-      | Move2(MOV,Reg(rd),Ea1b(i,rs)) ->           gen ["E"; "1"; asm_reg rd; asm_reg rs; asm_imm i]
+        (* Branch/Jmp/Call: 6 + 7 byte encoding: *)
+      | Ctl3(CBcc(cond),Reg(rs),Reg(rd),Mem(m)) -> gen ["6"; asm_cond cond; asm_reg rd; asm_reg rs; asm_mem env m]
+      | Ctl2(CALL,Mem(d),_) ->                     gen ["6"; "E"; asm_mem env d]
+      | Ctl1(JMP,Mem(d)) ->                        gen ["6"; "F"; asm_mem env d]
 
-        (* 10 byte insn: *)
-      | Ctl3(CBcc(cond),Imm(i),Reg(rd),Mem(m)) ->  gen ["F"; asm_cond cond; asm_reg rd; "0"; asm_imm i; asm_mem env m]
+        (* Lea with immediate: 6 + 7 byte encoding *)
+      | Alu2(LEA,Mem(m),Reg(rd)) ->                gen ["7"; "0"; asm_reg rd; "0"; asm_mem env m]
+      | Alu2(LEA,Ea1b(i,rs),Reg(rd)) ->            gen ["7"; "1"; asm_reg rd; asm_reg rs; asm_imm i]
+      | Alu2(LEA,Ea2b(i,rs,rz),Reg(rd)) ->         gen ["7"; "2"; asm_reg rd; asm_reg rs; asm_reg rz; "0"; asm_imm i]
+      | Alu2(LEA,Ea3b(i,rs,rz,sh),Reg(rd)) ->      gen ["7"; "3"; asm_reg rd; asm_reg rs; asm_reg rz; asm_sh sh; asm_imm i]
 
+        (* Compare and branch with immediate and target: 10 byte encoding: *)
+      | Ctl3(CBcc(cond),Imm(i),Reg(rd),Mem(m)) ->  gen ["8"; "0"; asm_reg rd; asm_cond cond; asm_imm i; asm_mem env m]
 
+      | Quad(q) -> gen [asm_imm64 q]
       | Label(lab) -> gen [""]
       | something -> Source(something)
     end
@@ -137,7 +149,7 @@ let should_translate line =
   let open Ast in
   match line with
   | Ok(Alu2(_)) | Ok(Move2(_)) | Ok(Ctl1(_)) | Ok(Ctl2(_))
-    | Ok(Ctl0(_)) | Ok(Ctl3(_)) | Ok(Label(_)) -> true
+    | Ok(Ctl0(_)) | Ok(Ctl3(_)) | Ok(Label(_)) | Ok(Quad(_)) -> true
   | _ -> false
 
 let print_assembly lines =

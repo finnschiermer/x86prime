@@ -28,13 +28,44 @@ let parse_lines lines  =
 let print_lines lines =
   List.iter Printer.line_printer lines
 ;;
+let machine = ref (Machine.create ())
+let labels = ref None
+
 let assemble fname =
   let lines = parse_lines (to_lines fname) in
   let lines = Stack.elim_stack lines in
   let lines = (Branches.elim_flags (Load_store.convert lines)) in
-  Assemble.assemble_lines lines
+  let lines = Assemble.prepare lines in
+  let env = Assemble.first_pass lines in
+  let program = Assemble.second_pass env lines in
+  let hex = Assemble.get_as_hex program in begin
+      Assemble.print_assembly program; 
+      labels := Some env;
+      machine := Machine.init hex
+    end
 
-let cmd_spec = [("-f", Arg.String assemble, "name of file")]
+exception NoValidProgram
+exception UnknownEntryPoint of string
+
+let run entry =
+  match !labels with
+  | None -> raise NoValidProgram
+  | Some(env) -> begin
+      match List.assoc_opt entry env with
+      | None -> raise (UnknownEntryPoint entry)
+      | Some(addr) -> begin
+          Scanf.sscanf addr "%x" (fun x ->
+              Printf.printf "Starting execution from address %X\n" x;
+              Machine.set_ip !machine x;
+              Machine.run !machine
+            )
+        end
+    end
+
+let cmd_spec = [
+    ("-f", Arg.String assemble, "name of file");
+    ("-run", Arg.String run, "name of entrypoint (function)")]
+
 let id _ = ()
 
-let () = Arg.parse cmd_spec id "Transform gcc output to x86' and assemble"
+let () = Arg.parse cmd_spec id "Transform gcc output to x86', assemble and simulate"

@@ -32,8 +32,9 @@ let reverse_string s =
   let result = Bytes.create sz in
   let i = ref 0 in
   while !i < sz do
-    Bytes.set result (sz - 1 - !i) s.[!i];
-    i := 1 + !i
+    Bytes.set result (sz - 2 - !i) s.[!i];
+    Bytes.set result (sz - 1 - !i) s.[!i + 1];
+    i := 2 + !i
   done;
   Bytes.to_string result
 
@@ -101,8 +102,8 @@ let assemble_line env line : assem =
       | Alu2(XOR,Reg(rs),Reg(rd)) ->               gen ["1"; "4"; asm_reg rd; asm_reg rs]
       | Alu2(MUL,Reg(rs),Reg(rd)) ->               gen ["1"; "5"; asm_reg rd; asm_reg rs]
       | Move2(MOV,Reg(rs),Reg(rd)) ->              gen ["2"; "0"; asm_reg rd; asm_reg rs]
-      | Move2(MOV,Ea1(rs),Reg(rd)) ->              gen ["2"; "0"; asm_reg rd; asm_reg rs]
-      | Move2(MOV,Reg(rd),Ea1(rs)) ->              gen ["2"; "0"; asm_reg rd; asm_reg rs]
+      | Move2(MOV,Ea1(rs),Reg(rd)) ->              gen ["2"; "1"; asm_reg rd; asm_reg rs]
+      | Move2(MOV,Reg(rd),Ea1(rs)) ->              gen ["2"; "2"; asm_reg rd; asm_reg rs]
 
         (* Lea without immediates: 2 + 3 byte encoding: *)
       | Alu2(LEA,Ea1(rs),Reg(rd)) ->               gen ["3"; "0"; asm_reg rd; asm_reg rs]
@@ -120,7 +121,7 @@ let assemble_line env line : assem =
       | Move2(MOV,Ea1b(i,rs),Reg(rd)) ->           gen ["5"; "1"; asm_reg rd; asm_reg rs; asm_imm i]
       | Move2(MOV,Reg(rd),Ea1b(i,rs)) ->           gen ["5"; "2"; asm_reg rd; asm_reg rs; asm_imm i]
 
-        (* Branch/Jmp/Call: 6 + 7 byte encoding: *)
+        (* Branch/Jmp/Call: 5 + 6 byte encoding: *)
       | Ctl3(CBcc(cond),Reg(rs),Reg(rd),Mem(m)) -> gen ["6"; asm_cond cond; asm_reg rd; asm_reg rs; asm_mem env m]
       | Ctl2(CALL,Mem(d),_) ->                     gen ["6"; "E"; asm_mem env d]
       | Ctl1(JMP,Mem(d)) ->                        gen ["6"; "F"; asm_mem env d]
@@ -138,12 +139,7 @@ let assemble_line env line : assem =
       | Label(lab) -> gen [""]
       | something -> Source(something)
     end
-  | Error(s1,s2) -> raise (Error_during_assembly (String.concat " " [s1; s2]))
-
-let print_assembly_line line =
-  match line with
-  | Assembly(a,s,i) -> Printf.printf "%8s : %-20s  #  " a s; (Printer.line_printer (Ok i))
-  | Source(i) -> Printf.printf "<**>                #  "; (Printer.line_printer (Ok i))
+   | Error(s1,s2) -> raise (Error_during_assembly (String.concat " " [s1; s2]))
 
 let should_translate line =
   let open Ast in
@@ -151,6 +147,11 @@ let should_translate line =
   | Ok(Alu2(_)) | Ok(Move2(_)) | Ok(Ctl1(_)) | Ok(Ctl2(_))
     | Ok(Ctl0(_)) | Ok(Ctl3(_)) | Ok(Label(_)) | Ok(Quad(_)) -> true
   | _ -> false
+
+let print_assembly_line line =
+  match line with
+  | Assembly(a,s,i) -> Printf.printf "%8s : %-20s  #  " a s; (Printer.line_printer (Ok i))
+  | Source(i) -> Printf.printf "<**>                #  "; (Printer.line_printer (Ok i))
 
 let print_assembly lines =
   List.iter print_assembly_line lines
@@ -173,11 +174,22 @@ let rec print_env env =
   | (a,b) :: tail -> Printf.printf "%s -> %s\n" a b; print_env tail
   | [] -> ()
 
-let assemble_lines lines =
-  let lines = List.filter should_translate lines in
+let prepare lines = List.filter should_translate lines
+
+let first_pass lines =
   let first_pass = List.map (assemble_line []) lines in
   let located = assign_addresses 0 first_pass in
   let env = gather_env [] located in
-  let second_pass = List.map (assemble_line env) lines in
-  print_assembly (assign_addresses 0 second_pass)
+  env
 
+let second_pass env lines =
+  let second_pass = List.map (assemble_line env) lines in
+  assign_addresses 0 second_pass
+
+let get_line_as_hex line =
+  match line with
+  | Assembly(a,s,_) -> (a,s)
+  | _ -> raise (Error_during_assembly "internal")
+
+let get_as_hex lines : (string * string) list =
+  List.map get_line_as_hex lines

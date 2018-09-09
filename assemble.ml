@@ -22,9 +22,13 @@ let asm_reg rd =
   else if rd = "%r14" then "E"
   else if rd = "%r15" then "F"
   else if rd = "%eax" then "0" (* same as %rax *) (* Fixme: there are diffs wrt sign extension, which we ignore *)
-  else if rd = "%ebx" then "1" (* same as %rax *)
-  else if rd = "%ecx" then "2" (* same as %rdx *)
+  else if rd = "%ebx" then "1" (* same as %rbx *)
+  else if rd = "%ecx" then "2" (* same as %rcx *)
   else if rd = "%edx" then "3" (* same as %rdx *)
+  else if rd = "%ebp" then "4"
+  else if rd = "%esi" then "5"
+  else if rd = "%edi" then "6"
+  else if rd = "%esp" then "7"
   else raise (Error_during_assembly ("Unknown register " ^ rd))
 
 let reverse_string s =

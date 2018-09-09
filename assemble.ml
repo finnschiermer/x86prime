@@ -149,7 +149,7 @@ let should_translate line =
   let open Ast in
   match line with
   | Ok(Alu2(_)) | Ok(Move2(_)) | Ok(Ctl1(_)) | Ok(Ctl2(_))
-    | Ok(Ctl0(_)) | Ok(Ctl3(_)) | Ok(Label(_)) | Ok(Quad(_)) -> true
+    | Ok(Ctl0(_)) | Ok(Ctl3(_)) | Ok(Label(_)) | Ok(Quad(_)) | Error(_) -> true
   | _ -> false
 
 let print_assembly_line line =

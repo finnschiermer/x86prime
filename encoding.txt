@@ -1,0 +1,66 @@
+x86prime instruction encoding
+-----------------------------
+
+00000000                                    return
+0001aaaa ddddssss                           register/register arithmic: op s,d (see below)
+00010000 ddddssss                           movq s,d
+00100001 ddddssss                           movq (s),d
+00100010 ddddssss                           movq d,(s)
+00110000 ddddssss                           leaq (s),d
+00110001 ddddssss zzzz0000                  leaq (s,z),d
+00110010 ddddssss zzzzvvvv                  leaq (s,z,(1<<v)),d
+0100aaaa dddd0000 ii...32...ii              imm/register arithmetic: op i,d (see below)
+01010000 dddd0000 ii...32...ii              move $i,d
+01010001 ddddssss ii...32...ii              move i(s),d
+01010010 ddddssss ii...32...ii              move d,i(s)
+0110cccc ddddssss ii...32...ii              cb<c> s,d,i (see below)
+01101110 ii...32...ii                       call i
+01101111 ii...32...ii                       jmp i
+01110000 dddd0000 ii...32...ii              leaq i,d
+01110001 ddddssss ii...32...ii              leaq i(s),d
+01110010 ddddssss zzzz0000 ii...32...ii     leaq i(s,z),d
+01110011 ddddssss zzzzvvvv ii...32...ii     leaq i(s,z,(1<<v)),d
+10000000 ddddcccc ii...32...ii pp...32...pp cb<c> $i,d,p (see below)
+
+Explanations:
+
+aaaa indicates arithmetic operation.
+0000 add
+0001 sub
+0010 and
+0011 or
+0100 xor
+0101 mul
+
+d,s and z are registers.
+0000 %rax     1000 %r8
+0001 %rbc     1001 %r9
+0010 %rcx     1010 %r10
+0011 %rdx     1011 %r11
+0100 %rbp     1100 %r12
+0101 %rsi     1101 %r13
+0110 %rdi     1110 %r14
+0111 %rsp     1111 %r15
+
+vvvv is a shift amount, only 0000,0001,0010 and 0011 are valid encodings.
+When used in assembly, the values is given as scale factors 1,2,4 or 8.
+
+ii...32...ii and pp...32...pp are 32 bit signed immediates
+
+<c> is a condition mnemonic used in compare-and-branch. The compare-and-branch
+instruction cb<c> is not part of the original x86 instruction set.
+
+Example: cble %rdi,%rbp,target     = if %rdi <= %rbp then jump to target
+
+Encoding
+0000 e            1000 a
+0001 ne           1001 ae
+0010 <reserved>   1010 b
+0011 <reserved>   1011 be
+0100 l            1100 <reserved>
+0101 le           1101 <reserved>
+0110 g            1110 <reserved>
+0111 ge           1111 <reserved>
+
+call places the return address in %r15 instead of pushing it onto the stack.
+ret returns to the address in %r15 instead of popping it from the stack.

@@ -30,6 +30,7 @@ let print_lines lines =
 ;;
 let machine = ref (Machine.create ())
 let labels = ref None
+let program = ref None
 
 let assemble fname =
   let lines = parse_lines (to_lines fname) in
@@ -37,9 +38,10 @@ let assemble fname =
   let lines = (Branches.elim_flags (Load_store.convert lines)) in
   let lines = Assemble.prepare lines in
   let env = Assemble.first_pass lines in
-  let program = Assemble.second_pass env lines in
-  let hex = Assemble.get_as_hex program in begin
-      Assemble.print_assembly program; 
+  let prog = Assemble.second_pass env lines in
+  let hex = Assemble.get_as_hex prog in begin
+    (*  Assemble.print_assembly program;  *)
+      program := Some prog;
       labels := Some env;
       machine := Machine.init hex
     end
@@ -62,10 +64,23 @@ let run entry =
         end
     end
 
+let set_show () = Machine.set_show !machine
+
+let list () =
+  match !program with
+  | Some(prog) -> Assemble.print_assembly prog
+  | None -> raise NoValidProgram
+
+let set_tracefile fname =
+  Machine.set_tracefile !machine (open_out fname)
+
 let cmd_spec = [
-    ("-f", Arg.String assemble, "name of file");
-    ("-run", Arg.String run, "name of entrypoint (function)")]
+    ("-f", Arg.String assemble, "<name of file> translates and assembles file");
+    ("-list", Arg.Unit list, "list transformed and assembled program");
+    ("-show", Arg.Unit set_show, "show each simulation step");
+    ("-tracefile", Arg.String set_tracefile, "<name of file> create a trace file for later verification");
+    ("-run", Arg.String run, "<name of function> starts simulation at indicated position (function)")]
 
 let id _ = ()
 
-let () = Arg.parse cmd_spec id "Transform gcc output to x86', assemble and simulate"
+let () = Arg.parse cmd_spec id "Transform gcc output to x86', assemble and simulate\n\nOptions must be given in order"

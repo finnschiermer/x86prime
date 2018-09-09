@@ -3,17 +3,29 @@ type memory = (Int64.t, (Int64.t array)) Hashtbl.t
 type registers = Int64.t array
 
 type state = {
-    mutable trace : bool;
+    mutable show : bool;
     mutable p_pos : int;
+    mutable tracefile : out_channel option;
     mutable ip : Int64.t;
     regs : registers;
     mem : Memory.t;
   }
 
 let create () = 
-  let machine = { trace = true; p_pos = 0; ip = Int64.zero; regs = Array.make 16 Int64.zero; mem = Memory.create () } in
+  let machine = { 
+      show = false; 
+      p_pos = 0; 
+      tracefile = None; 
+      ip = Int64.zero; 
+      regs = Array.make 16 Int64.zero; 
+      mem = Memory.create () 
+    } in
   machine.regs.(15) <- Int64.of_int (- 1); (* ensures final return is to negative address to end simulation *)
   machine
+
+let set_show state = state.show <- true
+
+let set_tracefile state channel = state.tracefile <- Some channel
 
 exception Unknown_digit of char
 
@@ -69,13 +81,13 @@ let _fetch state =
 
 let fetch state =
   let byte = _fetch state in
-  if state.trace then Printf.printf "%02x " byte;
+  if state.show then Printf.printf "%02x " byte;
   state.p_pos <- 3 + state.p_pos;
   byte
 
 let fetch_first state =
   let first_byte = _fetch state in
-  if state.trace then Printf.printf "\n%08x : %02x " ((Int64.to_int state.ip) - 1) first_byte;
+  if state.show then Printf.printf "\n%08x : %02x " ((Int64.to_int state.ip) - 1) first_byte;
   state.p_pos <- 3;
   first_byte
 
@@ -85,7 +97,7 @@ let fetch_imm state =
   let c = _fetch state in
   let d = _fetch state in
   let imm =(((((d lsl 8) + c) lsl 8) + b) lsl 8) + a in
-  if state.trace then Printf.printf "%08x " imm;
+  if state.show then Printf.printf "%08x " imm;
   state.p_pos <- 9 + state.p_pos;
   imm
 
@@ -113,15 +125,35 @@ let eval_condition cond b a =
   | 7 -> (Int64.compare a b) >= 0
   | _ -> raise (UnimplementedCondition cond)
 
+let align_output state =
+  while state.p_pos < 30 do
+    Printf.printf " ";
+    state.p_pos <- 1 + state.p_pos
+  done
+
 let wr_reg state reg value =
-  if state.trace then begin
-      while state.p_pos < 30 do
-        Printf.printf " ";
-        state.p_pos <- 1 + state.p_pos
-      done;
-      Printf.printf "%%r%d <- %x" reg (Int64.to_int value);
+  if state.show then begin
+      align_output state;
+      Printf.printf "%%r%d <- %Lx" reg value;
     end;
+  begin
+    match state.tracefile with
+    | Some(channel) -> Printf.fprintf channel "R %d %Lx\n" reg value
+    | None -> ()
+  end;
   state.regs.(reg) <- value
+
+let wr_mem state addr value =
+  if state.show then begin
+      align_output state;
+      Printf.printf "Memory[ %Lx ] <- %Lx" addr value
+    end;
+  begin
+    match state.tracefile with
+    | Some(channel) -> Printf.fprintf channel "M %Lx %Lx\n" addr value
+    | None -> ()
+  end;
+  Memory.write_quad state.mem addr value
 
 let run_inst state =
   let first_byte = fetch_first state in
@@ -148,7 +180,7 @@ let run_inst state =
       | 1,5 -> wr_reg state rd (Int64.mul state.regs.(rd) state.regs.(rs))
       | 2,0 -> wr_reg state rd state.regs.(rs)
       | 2,1 -> wr_reg state rd (Memory.read_quad state.mem state.regs.(rs))
-      | 2,2 -> Memory.write_quad state.mem state.regs.(rs) state.regs.(rd)
+      | 2,2 -> wr_mem state state.regs.(rs) state.regs.(rd)
       | 3,0 -> wr_reg state rd (state.regs.(rs))
       | 3,_ -> begin (* instructions with 3 bytes *)
           let third_byte = fetch state in
@@ -170,7 +202,7 @@ let run_inst state =
           | 4,5 -> wr_reg state rd (Int64.mul state.regs.(rd) qimm)
           | 5,0 -> wr_reg state rd qimm
           | 5,1 -> wr_reg state rd (Memory.read_quad state.mem (Int64.add qimm state.regs.(rs)))
-          | 5,2 -> Memory.write_quad state.mem (Int64.add qimm state.regs.(rs)) state.regs.(rd)
+          | 5,2 -> wr_mem state (Int64.add qimm state.regs.(rs)) state.regs.(rd)
           | 6,_ -> let taken = eval_condition lo state.regs.(rd) state.regs.(rs) in
                    if taken then state.ip <- qimm
           | 7,0 -> wr_reg state rd qimm
@@ -203,4 +235,10 @@ let run state =
   while (Int64.compare state.ip Int64.zero) > 0 do
     run_inst state
   done;
+  begin
+    match state.tracefile with
+    | Some(channel) -> close_out channel
+    | None -> ()
+  end;
+  state.tracefile <- None;
   Printf.printf "\n\nTerminated with negative instruction pointer\n"

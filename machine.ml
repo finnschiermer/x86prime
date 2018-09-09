@@ -70,6 +70,7 @@ let init (hex : (string * string) list) : state =
   s
 
 let set_ip state ip =
+  if state.show then Printf.printf "Starting execution from address %X\n" ip;
   state.ip <- Int64.of_int ip
 
 let next_ip state = state.ip <- Int64.succ state.ip
@@ -241,4 +242,4 @@ let run state =
     | None -> ()
   end;
   state.tracefile <- None;
-  Printf.printf "\n\nTerminated with negative instruction pointer\n"
+  if state.show then Printf.printf "\n\nTerminated with negative instruction pointer\n"

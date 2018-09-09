@@ -40,7 +40,6 @@ let assemble fname =
   let env = Assemble.first_pass lines in
   let prog = Assemble.second_pass env lines in
   let hex = Assemble.get_as_hex prog in begin
-    (*  Assemble.print_assembly program;  *)
       program := Some prog;
       labels := Some env;
       machine := Machine.init hex
@@ -57,7 +56,6 @@ let run entry =
       | None -> raise (UnknownEntryPoint entry)
       | Some(addr) -> begin
           Scanf.sscanf addr "%x" (fun x ->
-              Printf.printf "Starting execution from address %X\n" x;
               Machine.set_ip !machine x;
               Machine.run !machine
             )
@@ -77,8 +75,8 @@ let set_tracefile fname =
 let cmd_spec = [
     ("-f", Arg.String assemble, "<name of file> translates and assembles file");
     ("-list", Arg.Unit list, "list transformed and assembled program");
-    ("-show", Arg.Unit set_show, "show each simulation step");
-    ("-tracefile", Arg.String set_tracefile, "<name of file> create a trace file for later verification");
+    ("-show", Arg.Unit set_show, "show each simulation step (requires -run)");
+    ("-tracefile", Arg.String set_tracefile, "<name of file> create a trace file for later verification (requires -run)");
     ("-run", Arg.String run, "<name of function> starts simulation at indicated position (function)")]
 
 let id _ = ()

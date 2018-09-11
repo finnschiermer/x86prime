@@ -30,9 +30,15 @@ and rewrite_block block curr_sp terminator =
   let open Ast in
   match block with
   | Ok(PuPo(PUSH,reg)) :: rest -> 
-     Ok(Move2(MOV,reg,Ea1b((Printf.sprintf "%d" (curr_sp)), "%rsp"))) :: rewrite_block rest (curr_sp - 8) terminator
+     if curr_sp = 0 then
+       Ok(Move2(MOV,reg,Ea1("%rsp"))) :: rewrite_block rest (curr_sp - 8) terminator
+     else
+       Ok(Move2(MOV,reg,Ea1b((Printf.sprintf "%d" (curr_sp)), "%rsp"))) :: rewrite_block rest (curr_sp - 8) terminator
   | Ok(PuPo(POP,reg)) :: rest ->
-     Ok(Move2(MOV,Ea1b((Printf.sprintf "%d" (curr_sp)), "%rsp"),reg)) :: rewrite_block rest (curr_sp + 8) terminator
+     if curr_sp == 0 then
+       Ok(Move2(MOV,Ea1("%rsp"),reg)) :: rewrite_block rest (curr_sp + 8) terminator
+     else
+       Ok(Move2(MOV,Ea1b((Printf.sprintf "%d" (curr_sp)), "%rsp"),reg)) :: rewrite_block rest (curr_sp + 8) terminator
   | (Ok(Alu2(_)) as insn) :: rest | (Ok(Move2(_)) as insn) :: rest | (Ok(Ignored(_)) as insn) :: rest -> 
      insn :: rewrite_block rest curr_sp terminator
   | (Ok(Ctl0(_)) as insn) :: rest | (Ok(Ctl1(_)) as insn) :: rest | (Ok(Ctl3(_)) as insn) :: rest -> begin

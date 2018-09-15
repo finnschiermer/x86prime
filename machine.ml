@@ -4,6 +4,7 @@ type registers = Int64.t array
 
 type state = {
     mutable show : bool;
+    mutable running : bool;
     mutable p_pos : int;
     mutable tracefile : out_channel option;
     mutable ip : Int64.t;
@@ -14,13 +15,13 @@ type state = {
 let create () = 
   let machine = { 
       show = false; 
+      running = false;
       p_pos = 0; 
       tracefile = None; 
       ip = Int64.zero; 
       regs = Array.make 16 Int64.zero; 
       mem = Memory.create () 
     } in
-  machine.regs.(15) <- Int64.of_int (- 1); (* ensures final return is to negative address to end simulation *)
   machine
 
 let set_show state = state.show <- true
@@ -172,7 +173,15 @@ let run_inst state =
   let first_byte = fetch_first state in
   let (hi,lo) = split_byte first_byte in
   match hi,lo with
-  | 0,0 -> state.ip <- state.regs.(15) (* return instruction *)
+  | 0,0 -> begin
+      let ret_addr = state.regs.(15) in (* return instruction *)
+      if ret_addr > Int64.zero then
+        state.ip <- ret_addr
+      else begin
+        state.running <- false;
+        if state.show then Printf.printf "\nTerminating. Return to address %Lx\n" ret_addr
+        end
+    end
   | 6,0xE | 6,0xF -> begin (* one byte + immediate *)
       let imm = fetch_imm state in
       let qimm = imm_to_qimm imm in
@@ -245,7 +254,8 @@ let run_inst state =
 
 
 let run state =
-  while (Int64.compare state.ip Int64.zero) > 0 do
+  state.running <- true;
+  while state.running && state.ip >= Int64.zero do
     run_inst state
   done;
   begin
@@ -254,4 +264,4 @@ let run state =
     | None -> ()
   end;
   state.tracefile <- None;
-  if state.show then Printf.printf "\n\nTerminated with negative instruction pointer\n"
+  if state.show then Printf.printf "\nSimulation terminated\n"

@@ -31,6 +31,11 @@ let print_lines lines =
 let machine = ref (Machine.create ())
 let labels = ref None
 let program = ref None
+let program_name = ref ""
+let tracefile_name = ref ""
+let entry_name = ref ""
+let do_list = ref false
+let do_show = ref false
 
 let assemble fname =
   let lines = parse_lines (to_lines fname) in
@@ -42,11 +47,13 @@ let assemble fname =
   let hex = Assemble.get_as_hex prog in begin
       program := Some prog;
       labels := Some env;
+      if !do_list then Assemble.print_assembly prog;
       machine := Machine.init hex
     end
 
 exception NoValidProgram
 exception UnknownEntryPoint of string
+exception InvalidArgument of string
 
 let run entry =
   match !labels with
@@ -62,23 +69,23 @@ let run entry =
         end
     end
 
-let set_show () = Machine.set_show !machine
-
-let list () =
-  match !program with
-  | Some(prog) -> Assemble.print_assembly prog
-  | None -> raise NoValidProgram
-
-let set_tracefile fname =
-  Machine.set_tracefile !machine (open_out fname)
-
 let cmd_spec = [
-    ("-f", Arg.String assemble, "<name of file> translates and assembles file");
-    ("-list", Arg.Unit list, "list transformed and assembled program");
-    ("-show", Arg.Unit set_show, "show each simulation step (requires -run)");
-    ("-tracefile", Arg.String set_tracefile, "<name of file> create a trace file for later verification (requires -run)");
-    ("-run", Arg.String run, "<name of function> starts simulation at indicated position (function)")]
+    ("-f", Arg.Set_string program_name, "<name of file> translates and assembles file");
+    ("-list", Arg.Set do_list, "list transformed and assembled program");
+    ("-show", Arg.Set do_show, "show each simulation step (requires -run)");
+    ("-tracefile", Arg.Set_string tracefile_name, "<name of file> create a trace file for later verification (requires -run)");
+    ("-run", Arg.Set_string entry_name, "<name of function> starts simulation at indicated position (function)")]
 
-let id _ = ()
+let id s = 
+  Printf.printf "Unknown argument '%s' - run with -h for help\n" s;
+  raise (InvalidArgument s)
 
-let () = Arg.parse cmd_spec id "Transform gcc output to x86', assemble and simulate\n\nOptions must be given in order"
+let () = 
+  Arg.parse cmd_spec id "Transform gcc output to x86', assemble and simulate\n\nOptions must be given in order";
+  if !program_name <> "" then begin
+      assemble !program_name;
+      if !tracefile_name <> "" then Machine.set_tracefile !machine (open_out !tracefile_name);
+      if !do_show then Machine.set_show !machine;
+      if !entry_name <> "" then run !entry_name;
+    end
+  else Printf.printf "Error: you must give a program file name using -f\n"

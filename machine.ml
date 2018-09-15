@@ -132,10 +132,22 @@ let align_output state =
     state.p_pos <- 1 + state.p_pos
   done
 
+let reg_name reg =
+  match reg with
+  | 0 -> "%rax"
+  | 1 -> "%rbx"
+  | 2 -> "%rcx"
+  | 3 -> "%rdx"
+  | 4 -> "%rbp"
+  | 5 -> "%rsi"
+  | 6 -> "%rdi"
+  | 7 -> "%rsp"
+  | _ -> Printf.sprintf "%%r%2d" reg
+
 let wr_reg state reg value =
   if state.show then begin
       align_output state;
-      Printf.printf "%%r%d <- %Lx" reg value;
+      Printf.printf "%s <- %Lx" (reg_name reg) value;
     end;
   begin
     match state.tracefile with

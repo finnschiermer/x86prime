@@ -96,7 +96,7 @@ let assemble_line env line : assem =
       let gen l : assem = Assembly ("?", (String.concat "" l), insn) in
       match insn with
         (* operations without or with implicit registers: 1 byte encoding: *)
-      | Ctl1(RET,_) ->                             gen ["0"; "0"]
+      | Ctl1(RET,_) ->                             gen ["0"; "0"; "0"; "F"]
 
         (* alu/move reg/reg operations, 2 byte encoding: *)
       | Alu2(ADD,Reg(rs),Reg(rd)) ->               gen ["1"; "0"; asm_reg rd; asm_reg rs]
@@ -109,10 +109,10 @@ let assemble_line env line : assem =
       | Move2(MOV,Ea1(rs),Reg(rd)) ->              gen ["2"; "1"; asm_reg rd; asm_reg rs]
       | Move2(MOV,Reg(rd),Ea1(rs)) ->              gen ["2"; "2"; asm_reg rd; asm_reg rs]
 
-        (* Lea without immediates: 2 + 3 byte encoding: *)
-      | Alu2(LEA,Ea1(rs),Reg(rd)) ->               gen ["3"; "0"; asm_reg rd; asm_reg rs]
+        (* Lea without immediates: 3 byte encoding: *)
+      | Alu2(LEA,Ea1(rs),Reg(rd)) ->               gen ["3"; "0"; asm_reg rd; asm_reg rs; "0"; "0"]
       | Alu2(LEA,Ea2(rs,rz),Reg(rd)) ->            gen ["3"; "1"; asm_reg rd; asm_reg rs; asm_reg rz; "0"]
-      | Alu2(LEA,Ea3(rs,rz,sh),Reg(rd)) ->         gen ["3"; "2"; asm_reg rd; asm_reg rs; asm_reg rz; asm_sh sh]
+      | Alu2(LEA,Ea3(rs,rz,sh),Reg(rd)) ->         gen ["3"; "1"; asm_reg rd; asm_reg rs; asm_reg rz; asm_sh sh]
 
         (* alu/move immediate/reg operations: 6 byte encoding: *)
       | Alu2(ADD,Imm(i),Reg(rd)) ->                gen ["4"; "0"; asm_reg rd; "0"; asm_imm i]
@@ -125,16 +125,16 @@ let assemble_line env line : assem =
       | Move2(MOV,Ea1b(i,rs),Reg(rd)) ->           gen ["5"; "1"; asm_reg rd; asm_reg rs; asm_imm i]
       | Move2(MOV,Reg(rd),Ea1b(i,rs)) ->           gen ["5"; "2"; asm_reg rd; asm_reg rs; asm_imm i]
 
-        (* Branch/Jmp/Call: 5 + 6 byte encoding: *)
+        (* Branch/Jmp/Call: 6 byte encoding: *)
       | Ctl3(CBcc(cond),Reg(rs),Reg(rd),Mem(m)) -> gen ["6"; asm_cond cond; asm_reg rd; asm_reg rs; asm_mem env m]
-      | Ctl2(CALL,Mem(d),_) ->                     gen ["6"; "E"; asm_mem env d]
-      | Ctl1(JMP,Mem(d)) ->                        gen ["6"; "F"; asm_mem env d]
+      | Ctl2(CALL,Mem(d),_) ->                     gen ["6"; "E"; "F"; "0"; asm_mem env d]
+      | Ctl1(JMP,Mem(d)) ->                        gen ["6"; "F"; "0"; "0"; asm_mem env d]
 
-        (* Lea with immediate: 6 + 7 byte encoding *)
-      | Alu2(LEA,Mem(m),Reg(rd)) ->                gen ["7"; "0"; asm_reg rd; "0"; asm_mem env m]
-      | Alu2(LEA,Ea1b(i,rs),Reg(rd)) ->            gen ["7"; "1"; asm_reg rd; asm_reg rs; asm_imm i]
+        (* Lea with immediate: 7 byte encoding *)
+      | Alu2(LEA,Mem(m),Reg(rd)) ->                gen ["7"; "0"; asm_reg rd; "0"; "0"; "0"; asm_mem env m]
+      | Alu2(LEA,Ea1b(i,rs),Reg(rd)) ->            gen ["7"; "1"; asm_reg rd; asm_reg rs; "0"; "0"; asm_imm i]
       | Alu2(LEA,Ea2b(i,rs,rz),Reg(rd)) ->         gen ["7"; "2"; asm_reg rd; asm_reg rs; asm_reg rz; "0"; asm_imm i]
-      | Alu2(LEA,Ea3b(i,rs,rz,sh),Reg(rd)) ->      gen ["7"; "3"; asm_reg rd; asm_reg rs; asm_reg rz; asm_sh sh; asm_imm i]
+      | Alu2(LEA,Ea3b(i,rs,rz,sh),Reg(rd)) ->      gen ["7"; "2"; asm_reg rd; asm_reg rs; asm_reg rz; asm_sh sh; asm_imm i]
 
         (* Compare and branch with immediate and target: 10 byte encoding: *)
       | Ctl3(CBcc(cond),Imm(i),Reg(rd),Mem(m)) ->  gen ["8"; "0"; asm_reg rd; asm_cond cond; asm_imm i; asm_mem env m]

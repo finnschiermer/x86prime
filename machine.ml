@@ -172,6 +172,8 @@ let wr_mem state addr value =
 let run_inst state =
   let first_byte = fetch_first state in
   let (hi,lo) = split_byte first_byte in
+  let second_byte = fetch state in
+  let (rd,rs) = split_byte second_byte in
   match hi,lo with
   | 0,0 -> begin
       let ret_addr = state.regs.(15) in (* return instruction *)
@@ -182,75 +184,62 @@ let run_inst state =
         if state.show then Printf.printf "\nTerminating. Return to address %Lx\n" ret_addr
         end
     end
-  | 6,0xE | 6,0xF -> begin (* one byte + immediate *)
-      let imm = fetch_imm state in
-      let qimm = imm_to_qimm imm in
-      if lo = 0xE then begin
-        wr_reg state 15 state.ip; state.ip <- qimm  (* call *)
-      end else
-        state.ip <- qimm (* jmp *)
-    end
-  | _ -> begin (* all other insns needs one more byte before any imm *)
-      let second_byte = fetch state in
-      let (rd,rs) = split_byte second_byte in
-      match hi,lo with
-      | 1,0 -> wr_reg state rd (Int64.add state.regs.(rd) state.regs.(rs))
-      | 1,1 -> wr_reg state rd (Int64.sub state.regs.(rd) state.regs.(rs))
-      | 1,2 -> wr_reg state rd (Int64.logand state.regs.(rd) state.regs.(rs))
-      | 1,3 -> wr_reg state rd (Int64.logor state.regs.(rd) state.regs.(rs))
-      | 1,4 -> wr_reg state rd (Int64.logxor state.regs.(rd) state.regs.(rs))
-      | 1,5 -> wr_reg state rd (Int64.mul state.regs.(rd) state.regs.(rs))
-      | 2,0 -> wr_reg state rd state.regs.(rs)
-      | 2,1 -> wr_reg state rd (Memory.read_quad state.mem state.regs.(rs))
-      | 2,2 -> wr_mem state state.regs.(rs) state.regs.(rd)
-      | 3,0 -> wr_reg state rd (state.regs.(rs))
-      | 3,_ -> begin (* instructions with 3 bytes *)
-          let third_byte = fetch state in
-          let (rz,sh) = split_byte third_byte in
-          match lo with
-          | 1 -> wr_reg state rd (Int64.add state.regs.(rs) state.regs.(rz))
-          | 2 -> wr_reg state rd (Int64.add state.regs.(rs) (Int64.shift_left state.regs.(rz) sh))
-          | _ -> raise (UnknownInstructionAt (Int64.to_int state.ip))
-        end
-      | 4,_ | 5,_ | 6,_ | 7,0 | 7,1 -> begin (* instructions with 2 bytes + 1 immediate *)
-          let imm = fetch_imm state in
-          let qimm = imm_to_qimm imm in
-          match hi,lo with
-          | 4,0 -> wr_reg state rd (Int64.add state.regs.(rd) qimm)
-          | 4,1 -> wr_reg state rd (Int64.sub state.regs.(rd) qimm)
-          | 4,2 -> wr_reg state rd (Int64.logand state.regs.(rd) qimm)
-          | 4,3 -> wr_reg state rd (Int64.logor state.regs.(rd) qimm)
-          | 4,4 -> wr_reg state rd (Int64.logxor state.regs.(rd) qimm)
-          | 4,5 -> wr_reg state rd (Int64.mul state.regs.(rd) qimm)
-          | 5,0 -> wr_reg state rd qimm
-          | 5,1 -> wr_reg state rd (Memory.read_quad state.mem (Int64.add qimm state.regs.(rs)))
-          | 5,2 -> wr_mem state (Int64.add qimm state.regs.(rs)) state.regs.(rd)
-          | 6,_ -> let taken = eval_condition lo state.regs.(rd) state.regs.(rs) in
-                   if taken then state.ip <- qimm
-          | 7,0 -> wr_reg state rd qimm
-          | 7,1 -> wr_reg state rd (Int64.add qimm state.regs.(rs))
-          | _ -> raise (UnknownInstructionAt (Int64.to_int state.ip))
-        end
-      | 7,2 | 7,3 -> begin (* instructions with 3 bytes + 1 immediate *)
-          let third_byte = fetch state in
-          let (rz,sh) = split_byte third_byte in
-          let imm = fetch_imm state in
-          let qimm = imm_to_qimm imm in
-          match hi,lo with
-          | 7,2 -> wr_reg state rd (Int64.add qimm (Int64.add state.regs.(rs) state.regs.(rz)))
-          | 7,3 -> wr_reg state rd (Int64.add qimm (Int64.add state.regs.(rs) (Int64.shift_left state.regs.(rz) sh)))
-          | _ -> ()
-        end
-      | 8,0 -> begin (* instructions with 2 bytes + 2 immediates *)
-          let imm = fetch_imm state in
-          let qimm = imm_to_qimm imm in
-          let a_imm = fetch_imm state in
-          let q_a_imm = imm_to_qimm a_imm in
-          let taken = eval_condition rs state.regs.(rd) qimm in
-          if (taken) then state.ip <- q_a_imm
-        end
+  | 1,0 -> wr_reg state rd (Int64.add state.regs.(rd) state.regs.(rs))
+  | 1,1 -> wr_reg state rd (Int64.sub state.regs.(rd) state.regs.(rs))
+  | 1,2 -> wr_reg state rd (Int64.logand state.regs.(rd) state.regs.(rs))
+  | 1,3 -> wr_reg state rd (Int64.logor state.regs.(rd) state.regs.(rs))
+  | 1,4 -> wr_reg state rd (Int64.logxor state.regs.(rd) state.regs.(rs))
+  | 1,5 -> wr_reg state rd (Int64.mul state.regs.(rd) state.regs.(rs))
+  | 2,0 -> wr_reg state rd state.regs.(rs)
+  | 2,1 -> wr_reg state rd (Memory.read_quad state.mem state.regs.(rs))
+  | 2,2 -> wr_mem state state.regs.(rs) state.regs.(rd)
+  | 3,_ -> begin (* instructions with 3 bytes *)
+      let third_byte = fetch state in
+      let (rz,sh) = split_byte third_byte in
+      match lo with
+      | 0 -> wr_reg state rd (state.regs.(rs))
+      | 1 -> wr_reg state rd (Int64.add state.regs.(rs) (Int64.shift_left state.regs.(rz) sh))
       | _ -> raise (UnknownInstructionAt (Int64.to_int state.ip))
     end
+  | 4,_ | 5,_ | 6,_ -> begin (* instructions with 2 bytes + 1 immediate *)
+      let imm = fetch_imm state in
+      let qimm = imm_to_qimm imm in
+      match hi,lo with
+      | 4,0 -> wr_reg state rd (Int64.add state.regs.(rd) qimm)
+      | 4,1 -> wr_reg state rd (Int64.sub state.regs.(rd) qimm)
+      | 4,2 -> wr_reg state rd (Int64.logand state.regs.(rd) qimm)
+      | 4,3 -> wr_reg state rd (Int64.logor state.regs.(rd) qimm)
+      | 4,4 -> wr_reg state rd (Int64.logxor state.regs.(rd) qimm)
+      | 4,5 -> wr_reg state rd (Int64.mul state.regs.(rd) qimm)
+      | 5,0 -> wr_reg state rd qimm
+      | 5,1 -> wr_reg state rd (Memory.read_quad state.mem (Int64.add qimm state.regs.(rs)))
+      | 5,2 -> wr_mem state (Int64.add qimm state.regs.(rs)) state.regs.(rd)
+      | 6,0xE -> wr_reg state 15 state.ip; state.ip <- qimm (* call *)
+      | 6,0xF -> state.ip <- qimm (* jmp *)
+      | 6,_ -> let taken = eval_condition lo state.regs.(rd) state.regs.(rs) in
+               if taken then state.ip <- qimm
+      | _ -> raise (UnknownInstructionAt (Int64.to_int state.ip))
+    end
+  | 7,0 | 7,1 | 7,2 -> begin (* instructions with 3 bytes + 1 immediate *)
+      let third_byte = fetch state in
+      let (rz,sh) = split_byte third_byte in
+      let imm = fetch_imm state in
+      let qimm = imm_to_qimm imm in
+      match hi,lo with
+      | 7,0 -> wr_reg state rd qimm
+      | 7,1 -> wr_reg state rd (Int64.add qimm state.regs.(rs))
+      | 7,2 -> wr_reg state rd (Int64.add qimm (Int64.add state.regs.(rs) (Int64.shift_left state.regs.(rz) sh)))
+      | _ -> ()
+    end
+  | 8,0 -> begin (* instructions with 2 bytes + 2 immediates *)
+      let imm = fetch_imm state in
+      let qimm = imm_to_qimm imm in
+      let a_imm = fetch_imm state in
+      let q_a_imm = imm_to_qimm a_imm in
+      let taken = eval_condition rs state.regs.(rd) qimm in
+      if (taken) then state.ip <- q_a_imm
+    end
+  | _ -> raise (UnknownInstructionAt (Int64.to_int state.ip))
 
 
 let run state =

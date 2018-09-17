@@ -231,12 +231,12 @@ let run_inst state =
       | 7,2 -> wr_reg state rd (Int64.add qimm (Int64.add state.regs.(rs) (Int64.shift_left state.regs.(rz) sh)))
       | _ -> ()
     end
-  | 8,0 -> begin (* instructions with 2 bytes + 2 immediates *)
+  | 8,_ -> begin (* instructions with 2 bytes + 2 immediates *)
       let imm = fetch_imm state in
       let qimm = imm_to_qimm imm in
       let a_imm = fetch_imm state in
       let q_a_imm = imm_to_qimm a_imm in
-      let taken = eval_condition rs state.regs.(rd) qimm in
+      let taken = eval_condition lo state.regs.(rd) qimm in
       if (taken) then state.ip <- q_a_imm
     end
   | _ -> raise (UnknownInstructionAt (Int64.to_int state.ip))

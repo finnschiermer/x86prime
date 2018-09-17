@@ -137,7 +137,7 @@ let assemble_line env line : assem =
       | Alu2(LEA,Ea3b(i,rs,rz,sh),Reg(rd)) ->      gen ["7"; "2"; asm_reg rd; asm_reg rs; asm_reg rz; asm_sh sh; asm_imm i]
 
         (* Compare and branch with immediate and target: 10 byte encoding: *)
-      | Ctl3(CBcc(cond),Imm(i),Reg(rd),Mem(m)) ->  gen ["8"; "0"; asm_reg rd; asm_cond cond; asm_imm i; asm_mem env m]
+      | Ctl3(CBcc(cond),Imm(i),Reg(rd),Mem(m)) ->  gen ["8"; asm_cond cond; asm_reg rd; "0"; asm_imm i; asm_mem env m]
 
       | Quad(q) -> gen [asm_imm64 q]
       | Label(lab) -> gen [""]

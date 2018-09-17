@@ -18,7 +18,7 @@ x86prime instruction encoding
 01110000 dddd0000 00000000 ii...32...ii     leaq i,d
 01110001 ddddssss 00000000 ii...32...ii     leaq i(s),d
 01110010 ddddssss zzzzvvvv ii...32...ii     leaq i(s,z,(1<<v)),d
-10000000 ddddcccc ii...32...ii pp...32...pp cb<c> $i,d,p (see below)
+1000cccc dddd0000 ii...32...ii pp...32...pp cb<c> $i,d,p (see below)
 
 Explanations:
 

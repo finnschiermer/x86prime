@@ -18,6 +18,8 @@ let error lexbuf fmt =
     Printf.kprintf (fun msg -> 
         raise (Error ((position lexbuf)^" "^msg))) fmt
 
+let translating = ref false
+
 }
 
 let ws = [' ' '\t']
@@ -55,6 +57,8 @@ rule read = parse
 | ':'       { COLON         }
 | regs64    { REG(get lexbuf) }
 | regs32    { REG(get lexbuf) }
+| "%r14"    { if !translating then raise (Error "%r14 is reserved for x86prime") else REG("%r14") }
+| "%r15"    { if !translating then raise (Error "%r15 is reserved for x86prime") else REG("%r15") }
 | "leaq"    { ALU2(LEA)   }
 | "addq"     { ALU2(ADD)   }
 | "subq"     { ALU2(SUB)   }
@@ -67,15 +71,21 @@ rule read = parse
 | "movl"    { MOVE(MOV) }
 | "movq"    { MOVE(MOV) }
 | "rep ret" { CTL0(RET) }
-| "ret"     { CTL0(RET) }
+| "ret"     { if !translating then CTL0(RET) else CTL1(RET) }
 | "jne"     { CTL1(Jcc(NE)) }
 | "je"      { CTL1(Jcc(E))  }
 | "jle"     { CTL1(Jcc(LE)) }
 | "jl"      { CTL1(Jcc(L))  }
 | "jge"     { CTL1(Jcc(GE)) }
 | "jg"     { CTL1(Jcc(G)) }
+| "cbne"     { CTL3(CBcc(NE)) }
+| "cbe"      { CTL3(CBcc(E))  }
+| "cble"     { CTL3(CBcc(LE)) }
+| "cbl"      { CTL3(CBcc(L))  }
+| "cbge"     { CTL3(CBcc(GE)) }
+| "cbg"     { CTL3(CBcc(G)) }
 | "jmp"     { CTL1(JMP) }
-| "call"    { CTL1(CALL) }
+| "call"    { if !translating then CTL1(CALL) else CTL2(CALL) }
 | "pushq"    { PUPO(PUSH) }
 | "popq"     { PUPO(POP) }
 | "imulq"   { ALU2(MUL) }

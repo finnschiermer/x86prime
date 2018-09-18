@@ -34,13 +34,19 @@ let program = ref None
 let program_name = ref ""
 let tracefile_name = ref ""
 let entry_name = ref ""
+let do_txl = ref false
+let do_asm = ref false
 let do_list = ref false
 let do_show = ref false
 
-let assemble fname =
-  let lines = parse_lines (to_lines fname) in
+let read fname =
+  parse_lines (to_lines fname)
+
+let translate lines =
   let lines = Stack.elim_stack lines in
-  let lines = (Branches.elim_flags (Load_store.convert lines)) in
+  Branches.elim_flags (Load_store.convert lines)
+
+let assemble lines =
   let lines = Assemble.prepare lines in
   let env = Assemble.first_pass lines in
   let prog = Assemble.second_pass env lines in
@@ -71,19 +77,25 @@ let run entry =
 
 let cmd_spec = [
     ("-f", Arg.Set_string program_name, "<name of file> translates and assembles file");
-    ("-list", Arg.Set do_list, "list transformed and assembled program");
+    ("-txl", Arg.Set do_txl, "transform gcc output to x86prime");
+    ("-asm", Arg.Set do_asm, "assemble x86prime into byte stream");
+    ("-list", Arg.Set do_list, "list (transformed and/or assembled) program");
     ("-show", Arg.Set do_show, "show each simulation step (requires -run)");
     ("-tracefile", Arg.Set_string tracefile_name, "<name of file> create a trace file for later verification (requires -run)");
-    ("-run", Arg.Set_string entry_name, "<name of function> starts simulation at indicated position (function)")]
+    ("-run", Arg.Set_string entry_name, "<name of function> starts simulation at indicated function (requires -asm)")]
 
 let id s = 
   Printf.printf "Unknown argument '%s' - run with -h for help\n" s;
   raise (InvalidArgument s)
 
 let () = 
-  Arg.parse cmd_spec id "Transform gcc output to x86', assemble and simulate\n\nOptions must be given in order";
+  Arg.parse cmd_spec id "Transform gcc output to x86', assemble and simulate\n\n";
   if !program_name <> "" then begin
-      assemble !program_name;
+      Lexer.translating := !do_txl;
+      let source = read !program_name in
+      let source = if !do_txl then translate source else source in
+      let source = Assemble.prepare source in
+      if !do_asm then assemble source else if !do_list then print_lines source;
       if !tracefile_name <> "" then Machine.set_tracefile !machine (open_out !tracefile_name);
       if !do_show then Machine.set_show !machine;
       if !entry_name <> "" then run !entry_name;

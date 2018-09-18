@@ -193,7 +193,7 @@ let second_pass env lines =
 let get_line_as_hex line =
   match line with
   | Assembly(a,s,_) -> (a,s)
-  | _ -> raise (Error_during_assembly "internal")
+  | Source(i) -> raise (Error_during_assembly (Printf.sprintf "Not a valid x86prime instruction: %s" (Printer.print_insn i)))
 
 let get_as_hex lines : (string * string) list =
   List.map get_line_as_hex lines

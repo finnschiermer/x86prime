@@ -6,8 +6,10 @@
 %token <Ast.opcode> ALU2
 %token <Ast.opcode> MOVE
 %token <Ast.opcode> PUPO
-%token <Ast.opcode> CTL1
 %token <Ast.opcode> CTL0
+%token <Ast.opcode> CTL1
+%token <Ast.opcode> CTL2
+%token <Ast.opcode> CTL3
 %token COLON
 %token QUAD
 %token TYPE
@@ -29,7 +31,11 @@ aline:
  | i = ALU2 v1 = arg COMMA v2 = arg  { Ast.Alu2(i, v1, v2) }
  | i = MOVE v1 = arg COMMA v2 = arg  { Ast.Move2(i, v1, v2) }
  | i = PUPO v1 = arg                 { Ast.PuPo(i, v1) }
+ | i = CTL3 v1 = NUM COMMA v2 = REG COMMA t = ID  { Ast.Ctl3(i, Ast.Imm(v1), Ast.Reg(v2), Ast.Mem(t)) }
+ | i = CTL3 v1 = REG COMMA v2 = REG COMMA t = ID  { Ast.Ctl3(i, Ast.Reg(v1), Ast.Reg(v2), Ast.Mem(t)) }
  | i = CTL1 v1 = ID                  { Ast.Ctl1(i, Mem(v1)) }
+ | i = CTL1 ri = REG                 { Ast.Ctl1(i, Reg(ri)) }
+ | i = CTL2 im = ID COMMA ri = REG   { Ast.Ctl2(i, Mem(im), Reg(ri)) }
  | i = CTL0                          { Ast.Ctl0(i) }
  | QUAD i = NUM                      { Ast.Quad(i) }
  | s = DIR                           { Ast.Directive(s) }
@@ -43,6 +49,7 @@ arg:
  | LPAR s1 = REG COMMA s2 = REG COMMA i = NUM RPAR { Ast.Ea3(s1,s2,i) }
  | s = ID LPAR s1 = REG RPAR { if s1 = "%rip" then Ast.Mem(s) else Ast.Ea1b(s, s1) }
  | s = NUM LPAR s1 = REG RPAR { if s1 = "%rip" then Ast.Mem(s) else Ast.Ea1b(s, s1) }
+ | LPAR s1 = REG RPAR { Ast.Ea1(s1) }
  | s = ID   { Ast.Mem(s) }
  | i = NUM  { Ast.Imm(i) }
  | s = REG  { Ast.Reg(s) }

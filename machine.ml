@@ -152,7 +152,7 @@ let wr_reg state reg value =
     end;
   begin
     match state.tracefile with
-    | Some(channel) -> Printf.fprintf channel "R %d %Lx\n" reg value
+    | Some(channel) -> Printf.fprintf channel "R %x %Lx\n" reg value
     | None -> ()
   end;
   state.regs.(reg) <- value

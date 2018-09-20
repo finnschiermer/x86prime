@@ -3,7 +3,7 @@ x86prime instruction encoding
 
 00000000 00001111                           return
 0001aaaa ddddssss                           register/register arithmic: op s,d (see below)
-00010000 ddddssss                           movq s,d
+00100000 ddddssss                           movq s,d
 00100001 ddddssss                           movq (s),d
 00100010 ddddssss                           movq d,(s)
 00110000 ddddssss 00000000                  leaq (s),d

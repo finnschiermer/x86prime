@@ -23,6 +23,12 @@ let unify_inbound_flow env (label : string) (flag_setter : generator_info) =
   | None,x -> x
   | _ -> Conflict(label)
  
+let operand_conflicts target_op_spec other_insn =
+  let open Ast in
+  match target_op_spec, other_insn with
+  | Reg(rt),Chosen(Alu2(_,Reg(rs),_)) -> if rt = rs then true else false
+  | Reg(rt),Chosen(Alu2(_,_,Reg(rs))) -> if rt = rs then true else false
+  | _ -> true (* something we don't know - so flag it *)
 
 let rec fill_env_loop env lines (flag_setter : generator_info) =
   let open Ast in
@@ -35,6 +41,7 @@ let rec fill_env_loop env lines (flag_setter : generator_info) =
       let resolution = unify_inbound_flow env lab flag_setter in
       fill_env_loop ((lab,resolution) :: env) others flag_setter
     end
+  | Ok(Alu2(LEA,_,_)) :: others -> fill_env_loop env others flag_setter
   | Ok(Alu2(_) as insn) :: others -> fill_env_loop env others (Chosen(insn))
   | Ok(Ctl1((_),_)) :: others | Ok(Ctl0(_)) :: others -> fill_env_loop env others (Unknown : generator_info)
   | insn :: others -> fill_env_loop env others flag_setter
@@ -46,6 +53,12 @@ let rec elim_loop env lines flag_setter =
   | Ok(insn) as line :: other_lines -> begin
       match insn with
       | Alu2(TEST,_,_) | Alu2(CMP,_,_) -> elim_loop env other_lines (Chosen insn)
+      | Alu2(LEA,_,target) -> begin
+          if operand_conflicts target flag_setter then
+            line :: (elim_loop env other_lines Unknown)
+          else
+            line :: (elim_loop env other_lines flag_setter)
+        end
       | Alu2(_)                        -> line :: (elim_loop env other_lines (Chosen insn))
       | Ctl0(RET) | Ctl1(CALL,_)       -> line :: (elim_loop env other_lines Unknown)
       | Ctl1(Jcc(_),Mem(target)) -> begin

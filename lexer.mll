@@ -32,6 +32,7 @@ let start_proc = ".cfi_startproc"
 let directive = ".text" | ".globl" | ".cfi_endproc" | ".size" | ".section" | ".file" | ".ident"
     |  ".p2align" |  ".data" 
 let ignored = ".cfi_def_cfa_offset" | ".cfi_offset" | ".cfi_remember_state" | ".cfi_restore" 
+    | ".cfi_def_cfa" | ".cfi_def_cfa_register"
 
 let regs32 = "%eax" | "%ebx" | "%ecx" | "%edx" | "%ebp" | "%esi" | "%edi" | "%esp"
 let regs64 = "%rax" | "%rbx" | "%rcx" | "%rdx" | "%rbp" | "%rsi" | "%rdi" | "%rsp"
@@ -65,6 +66,10 @@ rule read = parse
 | "andq"     { ALU2(AND)   }
 | "orq"      { ALU2(OR)    }
 | "xorq"     { ALU2(XOR)   }
+| "addl"     { ALU2(ADD)   }
+| "subl"     { ALU2(SUB)   }
+| "andl"     { ALU2(AND)   }
+| "orl"      { ALU2(OR)    }
 | "xorl"     { ALU2(XOR)   }
 | "testq"     { ALU2(TEST)   }
 | "cmpq"     { ALU2(CMP)   }

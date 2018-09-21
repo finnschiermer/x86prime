@@ -48,10 +48,11 @@ aline:
 ;
 
 arg:
+ | LPAR s1 = REG RPAR { Ast.Ea1(s1) }
+ | LPAR s1 = REG COMMA s2 = REG RPAR { Ast.Ea2(s1,s2) }
  | LPAR s1 = REG COMMA s2 = REG COMMA i = NUM RPAR { Ast.Ea3(s1,s2,i) }
  | s = ID LPAR s1 = REG RPAR { if s1 = "%rip" then Ast.Mem(s) else Ast.Ea1b(s, s1) }
  | s = NUM LPAR s1 = REG RPAR { if s1 = "%rip" then Ast.Mem(s) else Ast.Ea1b(s, s1) }
- | LPAR s1 = REG RPAR { Ast.Ea1(s1) }
  | s = ID   { Ast.Mem(s) }
  | i = NUM  { Ast.Imm(i) }
  | s = REG  { Ast.Reg(s) }

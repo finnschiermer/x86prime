@@ -17,7 +17,7 @@ On debian based linux this is
 Use ocamlbuild to build an executable
 
 ~~~
-> ocamlbuild -use.menhir x86prime.native
+> ocamlbuild -use-menhir x86prime.native
 ~~~
 
 ## Assembling

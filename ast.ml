@@ -24,6 +24,7 @@
   | Ctl1 of opcode * op_spec
   | Ctl0 of opcode
   | Quad of string
+  | Align of string
   | Directive of string
   | Ignored of string
   | Function of string

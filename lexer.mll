@@ -30,7 +30,7 @@ let id    = alpha (alpha|digit)*
 let num   = '-'? digit+
 let start_proc = ".cfi_startproc"
 let directive = ".text" | ".globl" | ".cfi_endproc" | ".size" | ".section" | ".file" | ".ident"
-    |  ".p2align" |  ".data" | ".align"
+    |  ".p2align" |  ".data" 
 let ignored = ".cfi_def_cfa_offset" | ".cfi_offset" | ".cfi_remember_state" | ".cfi_restore" 
 
 let regs32 = "%eax" | "%ebx" | "%ecx" | "%edx" | "%ebp" | "%esi" | "%edi" | "%esp"
@@ -90,6 +90,7 @@ rule read = parse
 | "popq"     { PUPO(POP) }
 | "imulq"   { ALU2(MUL) }
 | ".quad"   { QUAD }
+| ".align"  { ALIGN }
 | num       { NUM(get lexbuf) }
 | '$' num   { NUM(get lexbuf) }
 | id        { ID(get lexbuf)}

@@ -70,10 +70,6 @@ let init (hex : (string * string) list) : state =
   List.iter write_line hex;
   s
 
-let set_ip state ip =
-  if state.show then Printf.printf "Starting execution from address %X\n" ip;
-  state.ip <- Int64.of_int ip
-
 let next_ip state = state.ip <- Int64.succ state.ip
 
 let _fetch state =
@@ -145,6 +141,14 @@ let reg_name reg =
   | 7 -> "%rsp"
   | _ -> Printf.sprintf "%%r%2d" reg
 
+let wr_ip state value = begin
+  match state.tracefile with
+    | Some(channel) -> Printf.fprintf channel "I %x %Lx\n" 0 value
+    | None -> ()
+  end;
+  state.ip <- value
+
+
 let wr_reg state reg value =
   if state.show then begin
       align_output state;
@@ -169,6 +173,11 @@ let wr_mem state addr value =
   end;
   Memory.write_quad state.mem addr value
 
+let set_ip state ip =
+  if state.show then Printf.printf "Starting execution from address %X\n" ip;
+  wr_ip state (Int64.of_int ip)
+
+
 let run_inst state =
   let first_byte = fetch_first state in
   let (hi,lo) = split_byte first_byte in
@@ -178,7 +187,7 @@ let run_inst state =
   | 0,0 -> begin
       let ret_addr = state.regs.(15) in (* return instruction *)
       if ret_addr > Int64.zero then
-        state.ip <- ret_addr
+        wr_ip state ret_addr
       else begin
         state.running <- false;
         if state.show then Printf.printf "\nTerminating. Return to address %Lx\n" ret_addr
@@ -214,10 +223,10 @@ let run_inst state =
       | 5,0 -> wr_reg state rd qimm
       | 5,1 -> wr_reg state rd (Memory.read_quad state.mem (Int64.add qimm state.regs.(rs)))
       | 5,2 -> wr_mem state (Int64.add qimm state.regs.(rs)) state.regs.(rd)
-      | 6,0xE -> wr_reg state 15 state.ip; state.ip <- qimm (* call *)
-      | 6,0xF -> state.ip <- qimm (* jmp *)
+      | 6,0xE -> wr_reg state 15 state.ip; wr_ip state qimm (* call *)
+      | 6,0xF -> wr_ip state qimm (* jmp *)
       | 6,_ -> let taken = eval_condition lo state.regs.(rd) state.regs.(rs) in
-               if taken then state.ip <- qimm
+               if taken then wr_ip state qimm
       | _ -> raise (UnknownInstructionAt (Int64.to_int state.ip))
     end
   | 7,0 | 7,1 | 7,2 -> begin (* instructions with 3 bytes + 1 immediate *)
@@ -237,7 +246,7 @@ let run_inst state =
       let a_imm = fetch_imm state in
       let q_a_imm = imm_to_qimm a_imm in
       let taken = eval_condition lo state.regs.(rd) qimm in
-      if (taken) then state.ip <- q_a_imm
+      if (taken) then wr_ip state q_a_imm
     end
   | _ -> raise (UnknownInstructionAt (Int64.to_int state.ip))
 

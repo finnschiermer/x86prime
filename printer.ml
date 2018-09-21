@@ -59,6 +59,7 @@ let print_insn insn =
   | Ctl1(opc,a) -> Printf.sprintf "    %s %s" (print_opc opc) (print_arg a)
   | Ctl0(opc) -> Printf.sprintf "    %s" (print_opc opc)
   | Quad(d) -> Printf.sprintf "    .quad %s" d
+  | Align(d) -> Printf.sprintf "    .align %s" d
   | Directive(s) -> Printf.sprintf "    %s" s
   | Ignored(s) -> Printf.sprintf "    %s" s
   | Function(s) -> Printf.sprintf "    .type %s, @function" s

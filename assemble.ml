@@ -141,6 +141,7 @@ let assemble_line env line : assem =
 
       | Quad(q) -> gen [asm_imm64 q]
       | Label(lab) -> gen [""]
+      | Align(_) -> gen [""]
       | something -> Source(something)
     end
    | Error(s1,s2) -> raise (Error_during_assembly (String.concat " " [s1; s2]))
@@ -149,7 +150,7 @@ let should_translate line =
   let open Ast in
   match line with
   | Ok(Alu2(_)) | Ok(Move2(_)) | Ok(Ctl1(_)) | Ok(Ctl2(_))
-    | Ok(Ctl0(_)) | Ok(Ctl3(_)) | Ok(Label(_)) | Ok(Quad(_)) | Error(_) -> true
+    | Ok(Ctl0(_)) | Ok(Ctl3(_)) | Ok(Label(_)) | Ok(Quad(_)) | Ok(Align(_)) | Error(_) -> true
   | _ -> false
 
 let print_assembly_line line =
@@ -162,6 +163,16 @@ let print_assembly lines =
 
 let rec assign_addresses curr_add lines =
   match lines with
+  | Assembly(_,encoding,Align(q)) :: rest -> begin
+      let alignment = int_of_string q in
+      let aligned = (curr_add + (alignment - 1)) land (lnot (alignment - 1)) in
+      Assembly(Printf.sprintf "%08x" aligned, encoding, Align(q)) :: assign_addresses aligned rest
+    end
+  | Assembly(_,encoding,Quad(q)) :: rest -> begin
+      let alignment = 8 in
+      let aligned = (curr_add + (alignment - 1)) land (lnot (alignment - 1)) in
+      Assembly(Printf.sprintf "%08x" aligned, encoding, Align(q)) :: assign_addresses (aligned + 8) rest
+    end
   | Assembly(_,encoding,insn) :: rest -> 
      Assembly(Printf.sprintf "%08x" curr_add, encoding, insn) :: assign_addresses (curr_add + (String.length encoding) / 2) rest
   | s :: rest -> s :: assign_addresses curr_add rest

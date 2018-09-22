@@ -32,11 +32,11 @@ aline:
  | i = ALU2 v1 = arg COMMA v2 = arg  { Ast.Alu2(i, v1, v2) }
  | i = MOVE v1 = arg COMMA v2 = arg  { Ast.Move2(i, v1, v2) }
  | i = PUPO v1 = arg                 { Ast.PuPo(i, v1) }
- | i = CTL3 v1 = NUM COMMA v2 = REG COMMA t = ID  { Ast.Ctl3(i, Ast.Imm(v1), Ast.Reg(v2), Ast.Mem(t)) }
- | i = CTL3 v1 = REG COMMA v2 = REG COMMA t = ID  { Ast.Ctl3(i, Ast.Reg(v1), Ast.Reg(v2), Ast.Mem(t)) }
- | i = CTL1 v1 = ID                  { Ast.Ctl1(i, Mem(v1)) }
+ | i = CTL3 v1 = NUM COMMA v2 = REG COMMA t = ID  { Ast.Ctl3(i, Ast.Imm(v1), Ast.Reg(v2), Ast.EaD(t)) }
+ | i = CTL3 v1 = REG COMMA v2 = REG COMMA t = ID  { Ast.Ctl3(i, Ast.Reg(v1), Ast.Reg(v2), Ast.EaD(t)) }
+ | i = CTL1 v1 = ID                  { Ast.Ctl1(i, EaD(v1)) }
  | i = CTL1 ri = REG                 { Ast.Ctl1(i, Reg(ri)) }
- | i = CTL2 im = ID COMMA ri = REG   { Ast.Ctl2(i, Mem(im), Reg(ri)) }
+ | i = CTL2 im = ID COMMA ri = REG   { Ast.Ctl2(i, EaD(im), Reg(ri)) }
  | i = CTL0                          { Ast.Ctl0(i) }
  | QUAD i = NUM                      { Ast.Quad(i) }
  | ALIGN i = NUM                     { Ast.Align(i) }
@@ -48,12 +48,13 @@ aline:
 ;
 
 arg:
- | LPAR s1 = REG RPAR { Ast.Ea1(s1) }
- | LPAR s1 = REG COMMA s2 = REG RPAR { Ast.Ea2(s1,s2) }
- | LPAR s1 = REG COMMA s2 = REG COMMA i = NUM RPAR { Ast.Ea3(s1,s2,i) }
- | s = ID LPAR s1 = REG RPAR { if s1 = "%rip" then Ast.Mem(s) else Ast.Ea1b(s, s1) }
- | s = NUM LPAR s1 = REG RPAR { if s1 = "%rip" then Ast.Mem(s) else Ast.Ea1b(s, s1) }
- | s = ID   { Ast.Mem(s) }
+ | LPAR s1 = REG RPAR { Ast.EaS(s1) }
+ | LPAR s1 = REG COMMA s2 = REG RPAR { Ast.EaZS(s1,s2,"1") }
+ | LPAR s1 = REG COMMA s2 = REG COMMA i = NUM RPAR { Ast.EaZS(s1,s2,i) }
+ | s = ID LPAR s1 = REG RPAR { if s1 = "%rip" then Ast.EaD(s) else Ast.EaDS(s, s1) }
+ | s = NUM LPAR s1 = REG RPAR { if s1 = "%rip" then Ast.EaD(s) else Ast.EaDS(s, s1) }
+(* FIXME: rest of the Ea modes missing *)
+ | s = ID   { Ast.EaD(s) }
  | i = NUM  { Ast.Imm(i) }
  | s = REG  { Ast.Reg(s) }
 ;

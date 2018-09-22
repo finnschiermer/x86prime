@@ -39,13 +39,13 @@ let print_arg arg =
   match arg with
   | Reg(s) -> s
   | Imm(s) -> s
-  | Mem(s) -> s
-  | Ea1(s1) -> Printf.sprintf "(%s)" s1
-  | Ea1b(s, s1) -> Printf.sprintf "%s(%s)" s s1
-  | Ea2(s1,s2) -> Printf.sprintf "(%s, %s)" s1 s2
-  | Ea2b(s, s1, s2) -> Printf.sprintf "%s(%s, %s)" s s1 s2
-  | Ea3(s1,s2,s3) -> Printf.sprintf "(%s, %s, %s)" s1 s2 s3
-  | Ea3b(s,s1,s2,s3) -> Printf.sprintf "%s(%s, %s, %s)" s s1 s2 s3
+  | EaS(s1) -> Printf.sprintf "(%s)" s1
+  | EaZ(s1,s2) -> Printf.sprintf "(,%s,%s)" s1 s2
+  | EaZS(s1,s2,s3) -> Printf.sprintf "(%s, %s, %s)" s1 s2 s3
+  | EaD(s) -> Printf.sprintf "%s" s
+  | EaDZ(s1,s2,s3) -> Printf.sprintf "%s(, %s, %s)" s1 s2 s3
+  | EaDS(s, s1) -> Printf.sprintf "%s(%s)" s s1
+  | EaDZS(s, s1, s2,s3) -> Printf.sprintf "%s(%s, %s, %s)" s s1 s2 s3
 
 let print_insn insn =
   let open Ast in

@@ -198,48 +198,43 @@ let run_inst state =
   | 1,3 -> wr_reg state rd (Int64.logor state.regs.(rd) state.regs.(rs))
   | 1,4 -> wr_reg state rd (Int64.logxor state.regs.(rd) state.regs.(rs))
   | 1,5 -> wr_reg state rd (Int64.mul state.regs.(rd) state.regs.(rs))
-  | 2,0 -> wr_reg state rd state.regs.(rs)
-  | 2,1 -> wr_reg state rd (Memory.read_quad state.mem state.regs.(rs))
-  | 2,2 -> wr_mem state state.regs.(rs) state.regs.(rd)
-  | 3,_ -> begin (* instructions with 3 bytes *)
-      let third_byte = fetch state in
-      let (rz,sh) = split_byte third_byte in
-      match lo with
-      | 0 -> wr_reg state rd (state.regs.(rs))
-      | 1 -> wr_reg state rd (Int64.add state.regs.(rs) (Int64.shift_left state.regs.(rz) sh))
-      | _ -> raise (UnknownInstructionAt (Int64.to_int state.ip))
-    end
-  | 4,_ | 5,_ | 6,_ -> begin (* instructions with 2 bytes + 1 immediate *)
+  | 2,1 -> wr_reg state rd state.regs.(rs)
+  | 3,1 -> wr_reg state rd (Memory.read_quad state.mem state.regs.(rs))
+  | 3,9 -> wr_mem state state.regs.(rs) state.regs.(rd)
+  | 4,_ | 5,_ | 6,_ | 7,_ -> begin (* instructions with 2 bytes + 1 immediate *)
       let imm = fetch_imm state in
       let qimm = imm_to_qimm imm in
       match hi,lo with
-      | 4,0 -> wr_reg state rd (Int64.add state.regs.(rd) qimm)
-      | 4,1 -> wr_reg state rd (Int64.sub state.regs.(rd) qimm)
-      | 4,2 -> wr_reg state rd (Int64.logand state.regs.(rd) qimm)
-      | 4,3 -> wr_reg state rd (Int64.logor state.regs.(rd) qimm)
-      | 4,4 -> wr_reg state rd (Int64.logxor state.regs.(rd) qimm)
-      | 4,5 -> wr_reg state rd (Int64.mul state.regs.(rd) qimm)
-      | 5,0 -> wr_reg state rd qimm
-      | 5,1 -> wr_reg state rd (Memory.read_quad state.mem (Int64.add qimm state.regs.(rs)))
-      | 5,2 -> wr_mem state (Int64.add qimm state.regs.(rs)) state.regs.(rd)
-      | 6,0xE -> wr_reg state 15 state.ip; state.ip <- qimm (* call *)
-      | 6,0xF -> state.ip <- qimm (* jmp *)
-      | 6,_ -> let taken = eval_condition lo state.regs.(rd) state.regs.(rs) in
+      | 4,0xE -> wr_reg state 15 state.ip; state.ip <- qimm (* call *)
+      | 4,0xF -> state.ip <- qimm (* jmp *)
+      | 4,_ -> let taken = eval_condition lo state.regs.(rd) state.regs.(rs) in
                if taken then state.ip <- qimm
+      | 5,0 -> wr_reg state rd (Int64.add state.regs.(rd) qimm)
+      | 5,1 -> wr_reg state rd (Int64.sub state.regs.(rd) qimm)
+      | 5,2 -> wr_reg state rd (Int64.logand state.regs.(rd) qimm)
+      | 5,3 -> wr_reg state rd (Int64.logor state.regs.(rd) qimm)
+      | 5,4 -> wr_reg state rd (Int64.logxor state.regs.(rd) qimm)
+      | 5,5 -> wr_reg state rd (Int64.mul state.regs.(rd) qimm)
+      | 6,0 -> wr_reg state rd qimm
+      | 7,5 -> wr_reg state rd (Memory.read_quad state.mem (Int64.add qimm state.regs.(rs)))
+      | 7,0xD -> wr_mem state (Int64.add qimm state.regs.(rs)) state.regs.(rd)
       | _ -> raise (UnknownInstructionAt (Int64.to_int state.ip))
     end
-  | 7,0 | 7,1 | 7,2 -> begin (* instructions with 3 bytes + 1 immediate *)
-      let third_byte = fetch state in
-      let (rz,sh) = split_byte third_byte in
-      let imm = fetch_imm state in
-      let qimm = imm_to_qimm imm in
-      match hi,lo with
-      | 7,0 -> wr_reg state rd qimm
-      | 7,1 -> wr_reg state rd (Int64.add qimm state.regs.(rs))
-      | 7,2 -> wr_reg state rd (Int64.add qimm (Int64.add state.regs.(rs) (Int64.shift_left state.regs.(rz) sh)))
-      | _ -> ()
+  | 8,_ | 9,_ | 10,_ | 11,_ -> begin (* leaq *)
+      let has_third_byte = hi = 9 || hi = 11 in
+      let has_imm = hi = 10 || hi = 11 in
+      let (rz,sh) = if has_third_byte then split_byte (fetch state) else 0,0 in
+      let qimm = if has_imm then imm_to_qimm (fetch_imm state) else Int64.zero in
+      let hasS = lo land 1 = 1 in
+      let hasZ = lo land 2 = 2 in
+      let hasD = lo land 4 = 4 in
+      let ea = Int64.add (if hasS then state.regs.(rs) else Int64.zero)
+               (Int64.add (if hasZ then Int64.shift_left state.regs.(rz) sh else Int64.zero)
+               (if hasD then qimm else Int64.zero))
+      in
+      wr_reg state rd ea
     end
-  | 8,_ -> begin (* instructions with 2 bytes + 2 immediates *)
+  | 15,_ -> begin (* cbcc with both imm and target *)
       let imm = fetch_imm state in
       let qimm = imm_to_qimm imm in
       let a_imm = fetch_imm state in

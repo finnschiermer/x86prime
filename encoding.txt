@@ -1,24 +1,29 @@
 x86prime instruction encoding
 -----------------------------
 
-00000000 00001111                           return
+00000000 00001111                           ret %r15
 0001aaaa ddddssss                           register/register arithmic: op s,d (see below)
-00100000 ddddssss                           movq s,d
-00100001 ddddssss                           movq (s),d
-00100010 ddddssss                           movq d,(s)
-00110000 ddddssss 00000000                  leaq (s),d
-00110001 ddddssss zzzzvvvv                  leaq (s,z,(1<<v)),d
-0100aaaa dddd0000 ii...32...ii              imm/register arithmetic: op i,d (see below)
-01010000 dddd0000 ii...32...ii              movq $i,d
-01010001 ddddssss ii...32...ii              movq i(s),d
-01010010 ddddssss ii...32...ii              movq d,i(s)
-0110cccc ddddssss pp...32...pp              cb<c> s,d,p (see below)
-01101110 11110000 pp...32...pp              call p
-01101111 00000000 pp...32...pp              jmp p
-01110000 dddd0000 00000000 ii...32...ii     leaq i,d
-01110001 ddddssss 00000000 ii...32...ii     leaq i(s),d
-01110010 ddddssss zzzzvvvv ii...32...ii     leaq i(s,z,(1<<v)),d
-1000cccc dddd0000 ii...32...ii pp...32...pp cb<c> $i,d,p (see below)
+00100001 ddddssss                           movq s,d
+00110001 ddddssss                           movq (s),d
+00111001 ddddssss                           movq d,(s)
+-
+0100cccc ddddssss pp...32...pp              cb<c> s,d,p (see below)
+01001110 11110000 pp...32...pp              call p,%r15
+01001111 00000000 pp...32...pp              jmp p
+0101aaaa dddd0000 ii...32...ii              imm/register arithmetic: op i,d (see below)
+01100100 dddd0000 ii...32...ii              movq $i,d
+01110101 ddddssss ii...32...ii              movq i(s),d
+01111101 ddddssss ii...32...ii              movq d,i(s)
+-
+10000001 ddddssss                           leaq (s),d
+10010010 dddd0000 zzzzvvvv                  leaq (,z,(1<<v)),d
+10010011 ddddssss zzzzvvvv                  leaq (s,z,(1<<v)),d
+10100100 dddd0000 ii...32...ii              leaq i,d
+10100101 ddddssss ii...32...ii              leaq i(s),d
+10110110 dddd0000 zzzzvvvv ii...32...ii     leaq i(,z,(1<<v)),d
+10110111 ddddssss zzzzvvvv ii...32...ii     leaq i(s,z,(1<<v)),d
+-
+1111cccc dddd0000 ii...32...ii pp...32...pp cb<c> $i,d,p (see below)
 
 Explanations:
 

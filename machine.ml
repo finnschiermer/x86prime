@@ -185,11 +185,11 @@ let run_inst state =
   match hi,lo with
   | 0,0 -> begin
       let ret_addr = state.regs.(15) in (* return instruction *)
-      if ret_addr > Int64.zero then
-        state.ip <- ret_addr
-      else begin
-        state.running <- false;
-        if state.show then Printf.printf "\nTerminating. Return to address %Lx\n" ret_addr
+      state.ip <- ret_addr;
+      if ret_addr <= Int64.zero then begin
+          log_ip state; (* final IP value should be added to trace *)
+          state.running <- false;
+          if state.show then Printf.printf "\nTerminating. Return to address %Lx\n" ret_addr
         end
     end
   | 1,0 -> wr_reg state rd (Int64.add state.regs.(rd) state.regs.(rs))
@@ -215,7 +215,7 @@ let run_inst state =
       | 5,3 -> wr_reg state rd (Int64.logor state.regs.(rd) qimm)
       | 5,4 -> wr_reg state rd (Int64.logxor state.regs.(rd) qimm)
       | 5,5 -> wr_reg state rd (Int64.mul state.regs.(rd) qimm)
-      | 6,0 -> wr_reg state rd qimm
+      | 6,4 -> wr_reg state rd qimm
       | 7,5 -> wr_reg state rd (Memory.read_quad state.mem (Int64.add qimm state.regs.(rs)))
       | 7,0xD -> wr_mem state (Int64.add qimm state.regs.(rs)) state.regs.(rd)
       | _ -> raise (UnknownInstructionAt (Int64.to_int state.ip))

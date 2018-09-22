@@ -121,7 +121,7 @@ let assemble_line env line : assem =
       | Alu2(OR,Imm(i),Reg(rd)) ->                 gen ["5"; "3"; asm_reg rd; "0"; asm_imm i]
       | Alu2(XOR,Imm(i),Reg(rd)) ->                gen ["5"; "4"; asm_reg rd; "0"; asm_imm i]
       | Alu2(MUL,Imm(i),Reg(rd)) ->                gen ["5"; "5"; asm_reg rd; "0"; asm_imm i]
-      | Move2(MOV,Imm(i),Reg(rd)) ->               gen ["6"; "0"; asm_reg rd; "0"; asm_imm i]
+      | Move2(MOV,Imm(i),Reg(rd)) ->               gen ["6"; "4"; asm_reg rd; "0"; asm_imm i]
       | Move2(MOV,EaDS(i,rs),Reg(rd)) ->           gen ["7"; "5"; asm_reg rd; asm_reg rs; asm_imm i]
       | Move2(MOV,Reg(rd),EaDS(i,rs)) ->           gen ["7"; "D"; asm_reg rd; asm_reg rs; asm_imm i]
 

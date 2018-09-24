@@ -54,3 +54,23 @@ Call x86prime with -run, specifying the entry point for the simulation:
 
 Sit back, relax and watch the blinkenlights.
 
+## Limitations to cross-assembling
+
+The translation from x86 to x86 is not perfect.
+
+ * When gcc optimizes heavily ("-O2, -O3"), the code patterns generated will not
+   be translated correctly. In most cases x86prime will stop with a "Cannot unify at.."
+   exception. We believe "-Og" to be working reasonably well, so stick to that.
+
+ * When gcc needs to use almost all registers, translation will either fail
+   or just be incorrect. It will fail if gcc needs to use %r14 or %r15, and
+   it will likely be incorrect if gcc needs to access the stack with a combination
+   of push, pop and movq instead of just push and pop.
+
+ * Using combinations of signed and unsigned longs may not be handled correctly.
+
+ * Using constants which cannot be represented in 32-bit 2-complement form
+   may not be handled correctly.
+
+In short, we advise you to check the translation result for correctness instead
+of blindly trusting it.

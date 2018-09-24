@@ -6,6 +6,7 @@ type state = {
     mutable show : bool;
     mutable running : bool;
     mutable p_pos : int;
+    mutable disas : Ast.line option;
     mutable tracefile : out_channel option;
     mutable ip : Int64.t;
     regs : registers;
@@ -17,7 +18,8 @@ let create () =
       show = false; 
       running = false;
       p_pos = 0; 
-      tracefile = None; 
+      tracefile = None;
+      disas = None;
       ip = Int64.zero; 
       regs = Array.make 16 Int64.zero; 
       mem = Memory.create () 
@@ -123,6 +125,17 @@ let eval_condition cond b a =
   | 7 -> (Int64.compare a b) >= 0
   | _ -> raise (UnimplementedCondition cond)
 
+let disas_cond cond =
+  let open Ast in
+  match cond with
+  | 0 -> E
+  | 1 -> NE
+  | 4 -> L
+  | 5 -> LE
+  | 6 -> G
+  | 7 -> GE
+  | _ -> raise (UnimplementedCondition cond)
+
 let align_output state =
   while state.p_pos < 30 do
     Printf.printf " ";
@@ -142,7 +155,8 @@ let reg_name reg =
   | _ -> Printf.sprintf "%%r%2d" reg
 
 let log_ip state = begin
-  match state.tracefile with
+    
+ match state.tracefile with
     | Some(channel) -> Printf.fprintf channel "I %x %Lx\n" 0 state.ip
     | None -> ()
   end
@@ -175,9 +189,103 @@ let set_ip state ip =
   if state.show then Printf.printf "Starting execution from address %X\n" ip;
   state.ip <- Int64.of_int ip
 
+let fetch_from_offs state offs =
+  Memory.read_byte state.mem (Int64.add state.ip (Int64.of_int offs)) 
 
+let fetch_imm_from_offs state offs =
+  let a = fetch_from_offs state offs in
+  let b = fetch_from_offs state (offs + 1) in
+  let c = fetch_from_offs state (offs + 2) in
+  let d = fetch_from_offs state (offs + 3) in
+  let imm =(((((d lsl 8) + c) lsl 8) + b) lsl 8) + a in
+  imm
+
+let disas_reg r =
+  match r with
+  | 0 -> "%rax"
+  | 1 -> "%rbx"
+  | 2 -> "%rcx"
+  | 3 -> "%rdx"
+  | 4 -> "%rbp"
+  | 5 -> "%rsi"
+  | 6 -> "%rdi"
+  | 7 -> "%rsp"
+  | _ -> Printf.sprintf "%%r%d" r
+
+
+let disas_sh sh =
+  match sh with
+  | 0 -> "1"
+  | 1 -> "2"
+  | 2 -> "4"
+  | 3 -> "8"
+  | _ -> "?"
+           
+let disas_imm imm = Printf.sprintf "%Lx" imm
+                                   
+let disas_inst state =
+  let first_byte = fetch_from_offs state 0 in
+  let (hi,lo) = split_byte first_byte in
+  let second_byte = fetch_from_offs state 1 in
+  let (rd,rs) = split_byte second_byte in
+  match hi,lo with
+  | 0,0 -> Ast.Ctl1(RET,Reg(disas_reg rd));
+  | 1,0 -> Ast.Alu2(ADD,Reg(disas_reg rs), Reg(disas_reg rd));
+  | 1,1 -> Ast.Alu2(SUB,Reg(disas_reg rs), Reg(disas_reg rd));
+  | 1,2 -> Ast.Alu2(AND,Reg(disas_reg rs), Reg(disas_reg rd));
+  | 1,3 -> Ast.Alu2(OR,Reg(disas_reg rs), Reg(disas_reg rd));
+  | 1,4 -> Ast.Alu2(XOR,Reg(disas_reg rs), Reg(disas_reg rd));
+  | 1,5 -> Ast.Alu2(MUL,Reg(disas_reg rs), Reg(disas_reg rd));
+  | 2,1 -> Ast.Move2(MOV,Reg(disas_reg rs), Reg(disas_reg rd));
+  | 3,1 -> Ast.Move2(MOV,EaS(disas_reg rs), Reg(disas_reg rd));
+  | 3,9 -> Ast.Move2(MOV,Reg(disas_reg rd), EaS(disas_reg rs));
+  | 4,_ | 5,_ | 6,_ | 7,_ -> begin (* instructions with 2 bytes + 1 immediate *)
+      let imm = fetch_imm_from_offs state 2 in
+      let qimm = imm_to_qimm imm in
+      match hi,lo with
+      | 4,0xE -> Ast.Ctl2(CALL,EaD(disas_imm qimm),Reg(disas_reg rd))
+      | 4,0xF -> Ast.Ctl1(JMP,EaD(disas_imm qimm))
+      | 4,_ -> Ast.Ctl3(CBcc(disas_cond lo),Reg(disas_reg rd),Reg(disas_reg rs),EaD(disas_imm qimm));
+      | 5,0 -> Ast.Alu2(ADD,Reg(disas_reg rd),Imm(disas_imm qimm))
+      | 5,1 -> Ast.Alu2(SUB,Reg(disas_reg rd),Imm(disas_imm qimm))
+      | 5,2 -> Ast.Alu2(AND,Reg(disas_reg rd),Imm(disas_imm qimm))
+      | 5,3 -> Ast.Alu2(OR,Reg(disas_reg rd),Imm(disas_imm qimm))
+      | 5,4 -> Ast.Alu2(XOR,Reg(disas_reg rd),Imm(disas_imm qimm))
+      | 5,5 -> Ast.Alu2(MUL,Reg(disas_reg rd),Imm(disas_imm qimm))
+      | 6,4 -> Ast.Move2(MOV,Imm(disas_imm qimm),Reg(disas_reg rd))
+      | 7,5 -> Ast.Move2(MOV,EaDS(disas_imm qimm,disas_reg rs),Reg(disas_reg rd))
+      | 7,0xD ->Ast.Move2(MOV,Reg(disas_reg rd), EaDS(disas_imm qimm,disas_reg rs))
+      | _ -> raise (UnknownInstructionAt (Int64.to_int state.ip))
+    end
+  | 8,_ | 9,_ | 10,_ | 11,_ -> begin (* leaq *)
+      let has_third_byte = hi = 9 || hi = 11 in
+      let has_imm = hi = 10 || hi = 11 in
+      let imm_offs = if has_third_byte then 3 else 2 in
+      let (rz,sh) = if has_third_byte then split_byte (fetch_from_offs state 2) else 0,0 in
+      let qimm = if has_imm then imm_to_qimm (fetch_imm_from_offs state imm_offs) else Int64.zero in
+      match lo with
+      | 1 -> Ast.Alu2(LEA,EaS(disas_reg rs),Reg(disas_reg rd))
+      | 2 -> Ast.Alu2(LEA,EaZ(disas_reg rz,disas_sh sh),Reg(disas_reg rd))
+      | 3 -> Ast.Alu2(LEA,EaZS(disas_reg rs,disas_reg rs,disas_sh sh),Reg(disas_reg rd))
+      | 4 -> Ast.Alu2(LEA,EaD(disas_imm qimm),Reg(disas_reg rd))
+      | 5 -> Ast.Alu2(LEA,EaDS(disas_imm qimm, disas_reg rs),Reg(disas_reg rd))
+      | 6 -> Ast.Alu2(LEA,EaDZ(disas_imm qimm, disas_reg rz,disas_sh sh),Reg(disas_reg rd))
+      | 7 -> Ast.Alu2(LEA,EaDZS(disas_imm qimm, disas_reg rs,disas_reg rs,disas_sh sh),Reg(disas_reg rd))
+      | _ -> raise (UnknownInstructionAt (Int64.to_int state.ip))
+    end
+  | 15,_ -> begin (* cbcc with both imm and target *)
+      let imm = fetch_imm_from_offs state 2 in
+      let qimm = imm_to_qimm imm in
+      let a_imm = fetch_imm_from_offs state 6 in
+      let q_a_imm = imm_to_qimm a_imm in
+      Ast.Ctl3(CBcc(disas_cond lo),Imm(disas_imm qimm),Reg(disas_reg rd),EaD(disas_imm q_a_imm))
+    end
+  | _ -> raise (UnknownInstructionAt (Int64.to_int state.ip))
+
+               
 let run_inst state =
   log_ip state;
+  Printf.printf ":: %s ::" (Printer.print_insn (disas_inst state));
   let first_byte = fetch_first state in
   let (hi,lo) = split_byte first_byte in
   let second_byte = fetch state in

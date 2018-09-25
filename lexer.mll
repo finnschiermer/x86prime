@@ -3,6 +3,7 @@ module L = Lexing
 module B = Buffer
 
 open Parser
+open Ast
 
 let get = L.lexeme
 let sprintf = Printf.sprintf

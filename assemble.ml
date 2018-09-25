@@ -84,15 +84,20 @@ let asm_sh sh =
   | "8" -> "3"
   | _ -> "?"
 
+let assoc_search a b =
+  try
+    Some (List.assoc a b)
+  with Not_found -> None
+
 let asm_mem env m =
-  match List.assoc_opt m env with
+  match assoc_search m env with
   | Some v -> reverse_string v
   | None -> "????????"
 
 let assemble_line env line : assem =
   let open Ast in
   match line with
-  | Ok(insn) -> begin
+  | Res.Ok(insn) -> begin
       let gen l : assem = Assembly ("?", (String.concat "" l), insn) in
       match insn with
         (* operations without or with implicit registers: 1 byte encoding: *)
@@ -147,24 +152,25 @@ let assemble_line env line : assem =
       | Align(_) -> gen [""]
       | something -> Source(something)
     end
-   | Error(s1,s2) -> raise (Error_during_assembly (String.concat " " [s1; s2]))
+   | Res.Error(s1,s2) -> raise (Error_during_assembly (String.concat " " [s1; s2]))
 
 let should_translate line =
   let open Ast in
   match line with
-  | Ok(Alu2(_)) | Ok(Move2(_)) | Ok(Ctl1(_)) | Ok(Ctl2(_))
-    | Ok(Ctl0(_)) | Ok(Ctl3(_)) | Ok(Label(_)) | Ok(Quad(_)) | Ok(Align(_)) | Error(_) -> true
+  | Res.Ok(Alu2(_)) | Res.Ok(Move2(_)) | Res.Ok(Ctl1(_)) | Res.Ok(Ctl2(_))
+    | Res.Ok(Ctl0(_)) | Res.Ok(Ctl3(_)) | Res.Ok(Label(_)) | Res.Ok(Quad(_)) | Res.Ok(Align(_)) | Res.Error(_) -> true
   | _ -> false
 
 let print_assembly_line line =
   match line with
-  | Assembly(a,s,i) -> Printf.printf "%8s : %-20s  #  " a s; (Printer.line_printer (Ok i))
-  | Source(i) -> Printf.printf "<**>                #  "; (Printer.line_printer (Ok i))
+  | Assembly(a,s,i) -> Printf.printf "%8s : %-20s  #  " a s; (Printer.line_printer (Res.Ok i))
+  | Source(i) -> Printf.printf "<**>                #  "; (Printer.line_printer (Res.Ok i))
 
 let print_assembly lines =
   List.iter print_assembly_line lines
 
 let rec assign_addresses curr_add lines =
+  let open Ast in
   match lines with
   | Assembly(_,encoding,Align(q)) :: rest -> begin
       let alignment = int_of_string q in

@@ -70,6 +70,6 @@ let print_insn insn =
 let line_printer line =
   let open Ast in
   match line with
-  | Ok(insn) -> Printf.printf "%s\n" (print_insn insn)
-  | Error(a,b) -> Printf.printf "ERROR: %s : %s\n" a b
+  | Res.Ok(insn) -> Printf.printf "%s\n" (print_insn insn)
+  | Res.Error(a,b) -> Printf.printf "ERROR: %s : %s\n" a b
 

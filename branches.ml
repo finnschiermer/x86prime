@@ -11,9 +11,15 @@ let rewrite_bcc condition (flag_setter : generator_info) =
   | insn,Conflict(lab) -> raise (Cannot_unify_at lab)
   | insn,_ -> insn
 
+let assoc_search a b =
+  try
+    Some (List.assoc a b)
+  with Not_found -> None
+
+
 (* add a flag_setter to env at label - or check against one already registered *)
 let unify_inbound_flow env (label : string) (flag_setter : generator_info) =
-  match (List.assoc_opt label env),flag_setter with
+  match (assoc_search label env),flag_setter with
   | Some(Chosen(setter)),Chosen(new_setter) -> begin
       if setter = new_setter then Chosen(setter)
       else Conflict(label)
@@ -33,24 +39,24 @@ let operand_conflicts target_op_spec other_insn =
 let rec fill_env_loop env lines (flag_setter : generator_info) =
   let open Ast in
   match lines with
-  | Ok(Label(lab)) :: others -> begin
+  | Res.Ok(Label(lab)) :: others -> begin
       let resolution = unify_inbound_flow env lab flag_setter in
       fill_env_loop ((lab,resolution) :: env) others resolution
     end
-  | Ok(Ctl1(Jcc(_),EaD(lab))) :: others | Ok(Ctl1(JMP,EaD(lab))) :: others -> begin
+  | Res.Ok(Ctl1(Jcc(_),EaD(lab))) :: others | Res.Ok(Ctl1(JMP,EaD(lab))) :: others -> begin
       let resolution = unify_inbound_flow env lab flag_setter in
       fill_env_loop ((lab,resolution) :: env) others flag_setter
     end
-  | Ok(Alu2(LEA,_,_)) :: others -> fill_env_loop env others flag_setter
-  | Ok(Alu2(_) as insn) :: others -> fill_env_loop env others (Chosen(insn))
-  | Ok(Ctl1((_),_)) :: others | Ok(Ctl0(_)) :: others -> fill_env_loop env others (Unknown : generator_info)
+  | Res.Ok(Alu2(LEA,_,_)) :: others -> fill_env_loop env others flag_setter
+  | Res.Ok(Alu2(_) as insn) :: others -> fill_env_loop env others (Chosen(insn))
+  | Res.Ok(Ctl1((_),_)) :: others | Res.Ok(Ctl0(_)) :: others -> fill_env_loop env others (Unknown : generator_info)
   | insn :: others -> fill_env_loop env others flag_setter
   | [] -> env
 
 let rec elim_loop env lines flag_setter =
   let open Ast in
   match lines with 
-  | Ok(insn) as line :: other_lines -> begin
+  | Res.Ok(insn) as line :: other_lines -> begin
       match insn with
       | Alu2(TEST,_,_) | Alu2(CMP,_,_) -> elim_loop env other_lines (Chosen insn)
       | Alu2(LEA,_,target) -> begin
@@ -62,10 +68,10 @@ let rec elim_loop env lines flag_setter =
       | Alu2(_)                        -> line :: (elim_loop env other_lines (Chosen insn))
       | Ctl0(RET) | Ctl1(CALL,_)       -> line :: (elim_loop env other_lines Unknown)
       | Ctl1(Jcc(_),EaD(target)) -> begin
-          (Ok (rewrite_bcc insn flag_setter)) :: (elim_loop env other_lines flag_setter)
+          (Res.Ok (rewrite_bcc insn flag_setter)) :: (elim_loop env other_lines flag_setter)
         end
       | Label(lab) -> begin
-          match (List.assoc_opt lab env) with
+          match (assoc_search lab env) with
           | Some(setter) -> line :: (elim_loop env other_lines setter)
           | None -> line :: (elim_loop env other_lines Unknown)
         end
@@ -78,7 +84,7 @@ let print_env env =
   let printer x =
     match x with
     | nm,Unknown -> Printf.printf "%s : Unknown\n" nm
-    | nm,Chosen(insn) -> (Printf.printf "%s : " nm); (Printer.line_printer (Ok(insn)))
+    | nm,Chosen(insn) -> (Printf.printf "%s : " nm); (Printer.line_printer (Res.Ok(insn)))
     | nm,Conflict(lab) -> (Printf.printf "%s : Conflict at %s\n" nm lab)
   in List.iter printer env
 

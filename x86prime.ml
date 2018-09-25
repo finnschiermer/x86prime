@@ -15,10 +15,10 @@ let line_mapper line =
   try
     let lexbuf = Lexing.from_string line in
     let p : Ast.line = Parser.aline Lexer.read lexbuf in
-    Ok(p)
+    Res.Ok(p)
   with
-  | Lexer.Error msg -> Error(msg, line)
-  | _ -> Error("failed: ", line)
+  | Lexer.Error msg -> Res.Error(msg, line)
+  | _ -> Res.Error("failed: ", line)
 ;;
 
 let parse_lines lines  =
@@ -61,11 +61,17 @@ exception NoValidProgram
 exception UnknownEntryPoint of string
 exception InvalidArgument of string
 
+let assoc_search a b =
+  try
+    Some (List.assoc a b)
+  with Not_found -> None
+
+
 let run entry =
   match !labels with
   | None -> raise NoValidProgram
   | Some(env) -> begin
-      match List.assoc_opt entry env with
+      match assoc_search entry env with
       | None -> raise (UnknownEntryPoint entry)
       | Some(addr) -> begin
           Scanf.sscanf addr "%x" (fun x ->

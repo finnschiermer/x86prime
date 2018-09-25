@@ -6,9 +6,9 @@
 let rec stack_change lines change =
   let open Ast in
   match lines with
-  | Ok(PuPo(PUSH,_)) :: others -> stack_change others (change - 8)
-  | Ok(PuPo(POP,_)) :: others -> stack_change others (change + 8)
-  | Ok(Alu2(_)) :: others | Ok(Move2(_)) :: others | Ok(Ignored(_)) :: others -> stack_change others change
+  | Res.Ok(PuPo(PUSH,_)) :: others -> stack_change others (change - 8)
+  | Res.Ok(PuPo(POP,_)) :: others -> stack_change others (change + 8)
+  | Res.Ok(Alu2(_)) :: others | Res.Ok(Move2(_)) :: others | Res.Ok(Ignored(_)) :: others -> stack_change others change
   | _ :: _ -> change
   | [] -> change
 
@@ -19,29 +19,29 @@ let rec process_all_blocks lines =
   else  process_pop_block lines adjustment
 
 and process_pop_block block adjustment =
-  let sp_adjust = Ok(Ast.Alu2(ADD,Ast.Imm(Printf.sprintf "%d" adjustment),Ast.Reg("%rsp"))) in
+  let sp_adjust = Res.Ok(Ast.Alu2(Ast.ADD,Ast.Imm(Printf.sprintf "%d" adjustment),Ast.Reg("%rsp"))) in
   rewrite_block block 0 (Some sp_adjust)
 
 and process_push_block block adjustment =
-  let sp_adjust = Ok(Ast.Alu2(ADD,Ast.Imm(Printf.sprintf "%d" adjustment),Ast.Reg("%rsp"))) in
+  let sp_adjust = Res.Ok(Ast.Alu2(Ast.ADD,Ast.Imm(Printf.sprintf "%d" adjustment),Ast.Reg("%rsp"))) in
   sp_adjust :: (rewrite_block block (0 - 8 - adjustment) None)
 
 and rewrite_block block curr_sp terminator =
   let open Ast in
   match block with
-  | Ok(PuPo(PUSH,reg)) :: rest -> 
+  | Res.Ok(PuPo(PUSH,reg)) :: rest -> 
      if curr_sp = 0 then
-       Ok(Move2(MOV,reg,EaS("%rsp"))) :: rewrite_block rest (curr_sp - 8) terminator
+       Res.Ok(Move2(MOV,reg,EaS("%rsp"))) :: rewrite_block rest (curr_sp - 8) terminator
      else
-       Ok(Move2(MOV,reg,EaDS((Printf.sprintf "%d" (curr_sp)), "%rsp"))) :: rewrite_block rest (curr_sp - 8) terminator
-  | Ok(PuPo(POP,reg)) :: rest ->
+       Res.Ok(Move2(MOV,reg,EaDS((Printf.sprintf "%d" (curr_sp)), "%rsp"))) :: rewrite_block rest (curr_sp - 8) terminator
+  | Res.Ok(PuPo(POP,reg)) :: rest ->
      if curr_sp == 0 then
-       Ok(Move2(MOV,EaS("%rsp"),reg)) :: rewrite_block rest (curr_sp + 8) terminator
+       Res.Ok(Move2(MOV,EaS("%rsp"),reg)) :: rewrite_block rest (curr_sp + 8) terminator
      else
-       Ok(Move2(MOV,EaDS((Printf.sprintf "%d" (curr_sp)), "%rsp"),reg)) :: rewrite_block rest (curr_sp + 8) terminator
-  | (Ok(Alu2(_)) as insn) :: rest | (Ok(Move2(_)) as insn) :: rest | (Ok(Ignored(_)) as insn) :: rest -> 
+       Res.Ok(Move2(MOV,EaDS((Printf.sprintf "%d" (curr_sp)), "%rsp"),reg)) :: rewrite_block rest (curr_sp + 8) terminator
+  | (Res.Ok(Alu2(_)) as insn) :: rest | (Res.Ok(Move2(_)) as insn) :: rest | (Res.Ok(Ignored(_)) as insn) :: rest -> 
      insn :: rewrite_block rest curr_sp terminator
-  | (Ok(Ctl0(_)) as insn) :: rest | (Ok(Ctl1(_)) as insn) :: rest | (Ok(Ctl3(_)) as insn) :: rest -> begin
+  | (Res.Ok(Ctl0(_)) as insn) :: rest | (Res.Ok(Ctl1(_)) as insn) :: rest | (Res.Ok(Ctl3(_)) as insn) :: rest -> begin
       match terminator with
       | None -> insn :: process_all_blocks rest
       | Some(term) -> term :: insn :: process_all_blocks rest
@@ -52,12 +52,12 @@ and rewrite_block block curr_sp terminator =
 let rec rewrite_calls lines =
   let open Ast in
   match lines with
-  | Ok(Ctl1(CALL,target)) :: others -> 
-     Ok(Ctl2(CALL,target,Reg("%r15"))) :: rewrite_calls others
-  | Ok(Ctl0(RET)) :: others ->
-     Ok(PuPo(POP,Reg("%r15"))) :: Ok(Ctl1(RET,Reg("%r15"))) :: rewrite_calls others
-  | Ok(Fun_start) as insn :: others ->
-     insn :: Ok(PuPo(PUSH,Reg("%r15"))) :: rewrite_calls others
+  | Res.Ok(Ctl1(CALL,target)) :: others -> 
+     Res.Ok(Ctl2(CALL,target,Reg("%r15"))) :: rewrite_calls others
+  | Res.Ok(Ctl0(RET)) :: others ->
+     Res.Ok(PuPo(POP,Reg("%r15"))) :: Res.Ok(Ctl1(RET,Reg("%r15"))) :: rewrite_calls others
+  | Res.Ok(Fun_start) as insn :: others ->
+     insn :: Res.Ok(PuPo(PUSH,Reg("%r15"))) :: rewrite_calls others
   | i :: others -> i :: rewrite_calls others
   | [] -> []
 

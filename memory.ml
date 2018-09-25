@@ -15,14 +15,16 @@ let txl_addr (addr : Int64.t) =
 type page = Int64.t array
 
 let get_page mem page_addr =
-  match Hashtbl.find_opt mem page_addr with
-  | Some(page) -> page
-  | None -> if (Hashtbl.length mem > 100) then
-              raise OutOfSimulatedMemory
-            else
-              let page = (Array.make 256 Int64.zero) in
-              Hashtbl.add mem page_addr page;
-              page
+  try
+    Hashtbl.find mem page_addr
+  with Not_found -> begin
+    if (Hashtbl.length mem > 100) then
+      raise OutOfSimulatedMemory
+    else
+      let page = (Array.make 256 Int64.zero) in
+      Hashtbl.add mem page_addr page;
+      page
+    end
 
 let ext_quad page offset = page.(Int64.to_int offset)
 

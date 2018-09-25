@@ -11,6 +11,7 @@ install menhir and ocamlbuild.
 On debian based linux this is
 ~~~
 > sudo apt install ocaml opam
+> opam init
 > opam switch 4.07.0
 < [at this point you may be asked to run "eval `opam config env`" - do it]
 > opam install menhir ocamlbuild

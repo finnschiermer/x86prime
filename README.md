@@ -4,11 +4,15 @@ fairly limited x86 to x86' translator
 
 ## Prerequisites
 
-Install ocaml and opam. Then use opam to install menhir and ocamlbuild.
+Install ocaml and opam. This installs the default compiler version for the system,
+which may not be recent enough. Upgrade this to version 4.07, Then use opam to
+install menhir and ocamlbuild.
 
 On debian based linux this is
 ~~~
 > sudo apt install ocaml opam
+> opam switch 4.07.0
+< [at this point you may be asked to run "eval `opam config env`" - do it]
 > opam install menhir ocamlbuild
 ~~~
 

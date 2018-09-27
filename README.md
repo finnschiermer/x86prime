@@ -82,6 +82,16 @@ Call x86prime with -run, specifying the entry point for the simulation:
 
 Sit back, relax and watch the blinkenlights.
 
+## Generating a tracefile
+
+A tracefile records all changes to memory and register made by your program.
+You request a tracefile by the "-tracefile" option:
+
+~~~
+> x86prime.native -f my_amazing_program.s -asm -txl -show -run my_little_function -tracefile prog.trc
+~~~
+
+
 ## Limitations to cross-assembling
 
 The translation from x86 to x86 is not perfect.

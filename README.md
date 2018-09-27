@@ -12,8 +12,17 @@ On debian based linux this is
 ~~~
 > sudo apt install ocaml opam
 > opam init
+~~~
+On some systems, the default ocaml version is too old. Use "ocaml --version"
+to find which version you have. If you have something before 4.05.0, you need
+to upgrade. Latest version is 4.07.0. To upgrade do:
+~~~
 > opam switch 4.07.0
-< [at this point you may be asked to run "eval `opam config env`" - do it]
+[at this point you may be asked to run "eval `opam config env`" - do it]
+~~~
+On some systems, this is not enough, and we recommend that you exit your shell,
+then restart it before proceeding
+~~~
 > opam install menhir ocamlbuild
 ~~~
 
@@ -25,6 +34,12 @@ Use ocamlbuild to build an executable
 > ocamlbuild -use-menhir x86prime.native
 ~~~
 
+If by accident you have built part of the program using an old version, you
+may get an error during build indicating a version problem with part of the
+project. If this happens, remove the "_build" subdirectory.
+
+And build again.
+
 ## Assembling
 
 Write a x86prime program and put it in a file, say prog.s.
@@ -35,6 +50,14 @@ see a printout of the assembly.
 ~~~
 > x86prime.native -f prog.s -asm -list
 ~~~
+
+To save the program in "hex" format just pipe the output into
+a file of your choice:
+
+~~~
+> x86prime.native -f prog.s -asm -list > prog.hex
+~~~
+
 
 ## Cross-assembling
 

@@ -17,6 +17,7 @@
 %token FUNCTION
 %token OBJECT
 %token FUN_START
+%token DOLLAR
 %token <string> DIR
 %token <string> IGN
 %token <string> ID
@@ -54,7 +55,9 @@ arg:
  | s = ID LPAR s1 = REG RPAR { if s1 = "%rip" then Ast.EaD(s) else Ast.EaDS(s, s1) }
  | s = NUM LPAR s1 = REG RPAR { if s1 = "%rip" then Ast.EaD(s) else Ast.EaDS(s, s1) }
 (* FIXME: rest of the Ea modes missing *)
+ | DOLLAR s = ID   { Ast.Imm(s) }
+ | DOLLAR i = NUM  { Ast.Imm(i) }
  | s = ID   { Ast.EaD(s) }
- | i = NUM  { Ast.Imm(i) }
+ | i = NUM  { Ast.EaD(i) }
  | s = REG  { Ast.Reg(s) }
 ;

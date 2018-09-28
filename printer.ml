@@ -38,7 +38,7 @@ let print_arg arg =
   let open Ast in 
   match arg with
   | Reg(s) -> s
-  | Imm(s) -> s
+  | Imm(s) -> Printf.sprintf "$%s" s
   | EaS(s1) -> Printf.sprintf "(%s)" s1
   | EaZ(s1,s2) -> Printf.sprintf "(,%s,%s)" s1 s2
   | EaZS(s1,s2,s3) -> Printf.sprintf "(%s, %s, %s)" s1 s2 s3

@@ -114,15 +114,17 @@ exception UnimplementedCondition of int
 
 let split_byte byte = (byte lsr 4, byte land 0x0F)
 
+let comp a b = Int64.compare a b
+
 let eval_condition cond b a =
   (* Printf.printf "{ %d %x %x }" cond (Int64.to_int a) (Int64.to_int b); *)
   match cond with
-  | 0 -> (Int64.compare a b) = 0
-  | 1 -> (Int64.compare a b) <> 0
-  | 4 -> (Int64.compare a b) < 0
-  | 5 -> (Int64.compare a b) <= 0
-  | 6 -> (Int64.compare a b) > 0
-  | 7 -> (Int64.compare a b) >= 0
+  | 0 -> a = b
+  | 1 -> a <> b
+  | 4 -> a < b
+  | 5 -> a <= b
+  | 6 -> a > b
+  | 7 -> a >= b
   | _ -> raise (UnimplementedCondition cond)
 
 let disas_cond cond =
@@ -155,7 +157,7 @@ let reg_name reg =
   | 5 -> "%rsi"
   | 6 -> "%rdi"
   | 7 -> "%rsp"
-  | _ -> Printf.sprintf "%%r%2d" reg
+  | _ -> Printf.sprintf "%%r%-2d" reg
 
 let log_ip state =
   match state.tracefile with
@@ -297,7 +299,7 @@ let run_inst state =
   match hi,lo with
   | 0,0 -> begin
       terminate_output state;
-      let ret_addr = state.regs.(15) in (* return instruction *)
+      let ret_addr = state.regs.(rs) in (* return instruction *)
       state.ip <- ret_addr;
       if ret_addr <= Int64.zero then begin
           log_ip state; (* final IP value should be added to trace *)
@@ -318,7 +320,7 @@ let run_inst state =
       let imm = fetch_imm state in
       let qimm = imm_to_qimm imm in
       match hi,lo with
-      | 4,0xE -> wr_reg state 15 state.ip; state.ip <- qimm (* call *)
+      | 4,0xE -> wr_reg state rd state.ip; state.ip <- qimm (* call *)
       | 4,0xF -> terminate_output state; state.ip <- qimm (* jmp *)
       | 4,_ -> terminate_output state;
                let taken = eval_condition lo state.regs.(rd) state.regs.(rs) in

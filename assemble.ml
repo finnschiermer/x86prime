@@ -42,26 +42,6 @@ let reverse_string s =
   done;
   Bytes.to_string result
 
-let asm_imm i = 
-  try
-    let ii = 
-      if i.[0] = '$' then int_of_string (String.sub i 1 ((String.length i) - 1)) 
-      else int_of_string i 
-    in
-    if ii < 0 then reverse_string (Printf.sprintf "%08x" (0x100000000 + ii))
-    else reverse_string (Printf.sprintf "%08x" ii)
-  with Failure _ -> "????????"
-
-let asm_imm64 i = (* FIXME: Will not work correctly for full 64 bit values *)
-  try
-    let ii = 
-      if i.[0] = '$' then int_of_string (String.sub i 1 ((String.length i) - 1)) 
-      else int_of_string i 
-    in
-    if ii < 0 then reverse_string (Printf.sprintf "%016x" (ii))
-    else reverse_string (Printf.sprintf "%016x" ii)
-  with Failure _ -> "????????????????"
-
 let asm_cond c =
   let open Ast in
   match c with
@@ -89,14 +69,33 @@ let asm_mem env m =
   | Some v -> reverse_string v
   | None -> "????????"
 
+let asm_imm env i = 
+  try
+    let ii = int_of_string i in
+    if ii < 0 then reverse_string (Printf.sprintf "%08x" (0x100000000 + ii))
+    else reverse_string (Printf.sprintf "%08x" ii)
+  with Failure _ -> asm_mem env i
+
+let asm_mem64 env m =
+  match List.assoc_opt m env with
+  | Some v -> reverse_string v
+  | None -> "????????????????"
+
+let asm_imm64 env i = 
+  try
+    let ii = Int64.of_string i in
+    if ii < Int64.zero then reverse_string (Printf.sprintf "%016Lx" (ii))
+    else reverse_string (Printf.sprintf "%016Lx" ii)
+  with Failure _ -> asm_mem64 env i
+
+
 let assemble_line env line : assem =
   let open Ast in
   match line with
   | Ok(insn) -> begin
       let gen l : assem = Assembly ("?", (String.concat "" l), insn) in
       match insn with
-        (* operations without or with implicit registers: 1 byte encoding: *)
-      | Ctl1(RET,_) ->                             gen ["0"; "0"; "0"; "F"]
+      | Ctl1(RET,Reg(rs)) ->                       gen ["0"; "0"; "0"; asm_reg rs]
 
         (* alu/move reg/reg operations, 2 byte encoding: *)
       | Alu2(ADD,Reg(rs),Reg(rd)) ->               gen ["1"; "0"; asm_reg rd; asm_reg rs]
@@ -111,19 +110,19 @@ let assemble_line env line : assem =
 
         (* Branch/Jmp/Call: 6 byte encoding: *)
       | Ctl3(CBcc(cond),Reg(rs),Reg(rd),EaD(m)) -> gen ["4"; asm_cond cond; asm_reg rd; asm_reg rs; asm_mem env m]
-      | Ctl2(CALL,EaD(d),_) ->                     gen ["4"; "E"; "F"; "0"; asm_mem env d]
+      | Ctl2(CALL,EaD(d),Reg(rd)) ->               gen ["4"; "E"; asm_reg rd; "0"; asm_mem env d]
       | Ctl1(JMP,EaD(d)) ->                        gen ["4"; "F"; "0"; "0"; asm_mem env d]
 
         (* alu/move immediate/reg operations: 6 byte encoding: *)
-      | Alu2(ADD,Imm(i),Reg(rd)) ->                gen ["5"; "0"; asm_reg rd; "0"; asm_imm i]
-      | Alu2(SUB,Imm(i),Reg(rd)) ->                gen ["5"; "1"; asm_reg rd; "0"; asm_imm i]
-      | Alu2(AND,Imm(i),Reg(rd)) ->                gen ["5"; "2"; asm_reg rd; "0"; asm_imm i]
-      | Alu2(OR,Imm(i),Reg(rd)) ->                 gen ["5"; "3"; asm_reg rd; "0"; asm_imm i]
-      | Alu2(XOR,Imm(i),Reg(rd)) ->                gen ["5"; "4"; asm_reg rd; "0"; asm_imm i]
-      | Alu2(MUL,Imm(i),Reg(rd)) ->                gen ["5"; "5"; asm_reg rd; "0"; asm_imm i]
-      | Move2(MOV,Imm(i),Reg(rd)) ->               gen ["6"; "4"; asm_reg rd; "0"; asm_imm i]
-      | Move2(MOV,EaDS(i,rs),Reg(rd)) ->           gen ["7"; "5"; asm_reg rd; asm_reg rs; asm_imm i]
-      | Move2(MOV,Reg(rd),EaDS(i,rs)) ->           gen ["7"; "D"; asm_reg rd; asm_reg rs; asm_imm i]
+      | Alu2(ADD,Imm(i),Reg(rd)) ->                gen ["5"; "0"; asm_reg rd; "0"; asm_imm env i]
+      | Alu2(SUB,Imm(i),Reg(rd)) ->                gen ["5"; "1"; asm_reg rd; "0"; asm_imm env i]
+      | Alu2(AND,Imm(i),Reg(rd)) ->                gen ["5"; "2"; asm_reg rd; "0"; asm_imm env i]
+      | Alu2(OR,Imm(i),Reg(rd)) ->                 gen ["5"; "3"; asm_reg rd; "0"; asm_imm env i]
+      | Alu2(XOR,Imm(i),Reg(rd)) ->                gen ["5"; "4"; asm_reg rd; "0"; asm_imm env i]
+      | Alu2(MUL,Imm(i),Reg(rd)) ->                gen ["5"; "5"; asm_reg rd; "0"; asm_imm env i]
+      | Move2(MOV,Imm(i),Reg(rd)) ->               gen ["6"; "4"; asm_reg rd; "0"; asm_imm env i]
+      | Move2(MOV,EaDS(i,rs),Reg(rd)) ->           gen ["7"; "5"; asm_reg rd; asm_reg rs; asm_imm env i]
+      | Move2(MOV,Reg(rd),EaDS(i,rs)) ->           gen ["7"; "D"; asm_reg rd; asm_reg rs; asm_imm env i]
 
         (* Lea without immediates: 2 byte encoding: *)
       | Alu2(LEA,EaS(rs),Reg(rd)) ->               gen ["8"; "1"; asm_reg rd; asm_reg rs]
@@ -134,15 +133,15 @@ let assemble_line env line : assem =
 
         (* Lea with immediate: 6 byte encoding *)
       | Alu2(LEA,EaD(m),Reg(rd)) ->                gen ["A"; "4"; asm_reg rd; "0"; asm_mem env m]
-      | Alu2(LEA,EaDS(i,rs),Reg(rd)) ->            gen ["A"; "5"; asm_reg rd; asm_reg rs; asm_imm i]
+      | Alu2(LEA,EaDS(i,rs),Reg(rd)) ->            gen ["A"; "5"; asm_reg rd; asm_reg rs; asm_imm env i]
         (* Lea with immediate: 7 byte encoding *)
-      | Alu2(LEA,EaDZ(i,rz,sh),Reg(rd)) ->         gen ["B"; "6"; asm_reg rd; "0"; asm_reg rz; asm_sh sh; asm_imm i]
-      | Alu2(LEA,EaDZS(i,rs,rz,sh),Reg(rd)) ->     gen ["B"; "7"; asm_reg rd; asm_reg rs; asm_reg rz; asm_sh sh; asm_imm i]
+      | Alu2(LEA,EaDZ(i,rz,sh),Reg(rd)) ->         gen ["B"; "6"; asm_reg rd; "0"; asm_reg rz; asm_sh sh; asm_imm env i]
+      | Alu2(LEA,EaDZS(i,rs,rz,sh),Reg(rd)) ->     gen ["B"; "7"; asm_reg rd; asm_reg rs; asm_reg rz; asm_sh sh; asm_imm env i]
 
         (* Compare and branch with immediate and target: 10 byte encoding: *)
-      | Ctl3(CBcc(cond),Imm(i),Reg(rd),EaD(m)) ->  gen ["F"; asm_cond cond; asm_reg rd; "0"; asm_imm i; asm_mem env m]
+      | Ctl3(CBcc(cond),Imm(i),Reg(rd),EaD(m)) ->  gen ["F"; asm_cond cond; asm_reg rd; "0"; asm_imm env i; asm_mem env m]
 
-      | Quad(q) -> gen [asm_imm64 q]
+      | Quad(q) -> gen [asm_imm64 env q]
       | Label(lab) -> gen [""]
       | Align(_) -> gen [""]
       | something -> Source(something)
@@ -174,7 +173,7 @@ let rec assign_addresses curr_add lines =
   | Assembly(_,encoding,Quad(q)) :: rest -> begin
       let alignment = 8 in
       let aligned = (curr_add + (alignment - 1)) land (lnot (alignment - 1)) in
-      Assembly(Printf.sprintf "%08x" aligned, encoding, Align(q)) :: assign_addresses (aligned + 8) rest
+      Assembly(Printf.sprintf "%08x" aligned, encoding, Quad(q)) :: assign_addresses (aligned + 8) rest
     end
   | Assembly(_,encoding,insn) :: rest -> 
      Assembly(Printf.sprintf "%08x" curr_add, encoding, insn) :: assign_addresses (curr_add + (String.length encoding) / 2) rest

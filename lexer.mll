@@ -20,6 +20,8 @@ let error lexbuf fmt =
 
 let translating = ref false
 
+let zap_dollar s = String.sub s 1 ((String.length s) - 1)
+
 }
 
 let ws = [' ' '\t']
@@ -48,9 +50,8 @@ rule read = parse
 | ".type"   { TYPE }
 | "@function" { FUNCTION }
 | "@object" { OBJECT }
-| start_proc { FUN_START }
 | directive [^'\n']*  { DIR(get lexbuf) }
-| ignored [^'\n']* { IGN(get lexbuf) }
+| start_proc { FUN_START }
 | nl        { L.new_line lexbuf; LINE  }
 | '('       { LPAR          }
 | ')'       { RPAR          }
@@ -96,9 +97,10 @@ rule read = parse
 | "imulq"   { ALU2(MUL) }
 | ".quad"   { QUAD }
 | ".align"  { ALIGN }
+| "$"       { DOLLAR }
 | num       { NUM(get lexbuf) }
-| '$' num   { NUM(get lexbuf) }
 | id        { ID(get lexbuf)}
+| ignored [^'\n']* { IGN(get lexbuf) }
 | eof       { EOF           }
 | _         { raise (Error (Printf.sprintf "unhandled '%s' - in: " (get lexbuf))) }
 

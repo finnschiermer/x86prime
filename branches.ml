@@ -5,7 +5,7 @@ type generator_info = Unknown | Chosen of Ast.line | Conflict of string
 let rewrite_bcc condition (flag_setter : generator_info) =
   let open Ast in
   match condition, flag_setter with
-  | Ctl1(Jcc(cond),lab), Chosen(Alu2(TEST,a,b)) -> Ctl3(CBcc(Ast.rev_cond cond),Imm("$0"),b,lab)
+  | Ctl1(Jcc(cond),lab), Chosen(Alu2(TEST,a,b)) -> Ctl3(CBcc(Ast.rev_cond cond),Imm("0"),b,lab)
   | Ctl1(Jcc(cond),lab), Chosen(Alu2(CMP,a,b)) -> Ctl3(CBcc(Ast.rev_cond cond),a,b,lab)
   | Ctl1(Jcc(cond),lab), Unknown -> raise (Cannot_unify_at "unknown")
   | insn,Conflict(lab) -> raise (Cannot_unify_at lab)

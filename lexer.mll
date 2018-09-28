@@ -101,6 +101,9 @@ rule read = parse
 | num       { NUM(get lexbuf) }
 | id        { ID(get lexbuf)}
 | ignored [^'\n']* { IGN(get lexbuf) }
+| "."  { eoline lexbuf }
 | eof       { EOF           }
 | _         { raise (Error (Printf.sprintf "unhandled '%s' - in: " (get lexbuf))) }
 
+and eoline = parse
+| [^'\n']*   { read lexbuf }

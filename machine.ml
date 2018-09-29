@@ -1,6 +1,10 @@
 
 type memory = (Int64.t, (Int64.t array)) Hashtbl.t
 type registers = Int64.t array
+type perf = { 
+    bp : Predictors.predictor;
+    rp : Predictors.predictor;
+  }
 
 type state = {
     mutable show : bool;
@@ -237,7 +241,7 @@ let disas_inst state =
   let second_byte = fetch_from_offs state 1 in
   let (rd,rs) = split_byte second_byte in
   match hi,lo with
-  | 0,0 -> Ast.Ctl1(RET,Reg(disas_reg rd));
+  | 0,0 -> Ast.Ctl1(RET,Reg(disas_reg rs));
   | 1,0 -> Ast.Alu2(ADD,Reg(disas_reg rs), Reg(disas_reg rd));
   | 1,1 -> Ast.Alu2(SUB,Reg(disas_reg rs), Reg(disas_reg rd));
   | 1,2 -> Ast.Alu2(AND,Reg(disas_reg rs), Reg(disas_reg rd));
@@ -289,7 +293,7 @@ let disas_inst state =
 
 let terminate_output state = if state.show then align_output state
 
-let run_inst state =
+let run_inst perf state =
   log_ip state;
   if state.show then state.disas <- Some(disas_inst state);
   let first_byte = fetch_first state in
@@ -300,6 +304,7 @@ let run_inst state =
   | 0,0 -> begin
       terminate_output state;
       let ret_addr = state.regs.(rs) in (* return instruction *)
+      let _ = Predictors.predict_return perf.rp (Int64.to_int ret_addr) in
       state.ip <- ret_addr;
       if ret_addr <= Int64.zero then begin
           log_ip state; (* final IP value should be added to trace *)
@@ -320,10 +325,14 @@ let run_inst state =
       let imm = fetch_imm state in
       let qimm = imm_to_qimm imm in
       match hi,lo with
-      | 4,0xE -> wr_reg state rd state.ip; state.ip <- qimm (* call *)
+      | 4,0xE -> begin
+          Predictors.note_call perf.rp (Int64.to_int state.ip);
+          wr_reg state rd state.ip; state.ip <- qimm (* call *)
+        end
       | 4,0xF -> terminate_output state; state.ip <- qimm (* jmp *)
       | 4,_ -> terminate_output state;
                let taken = eval_condition lo state.regs.(rd) state.regs.(rs) in
+               let _ = Predictors.predict_and_train perf.bp (Int64.to_int state.ip) imm taken in
                if taken then state.ip <- qimm
       | 5,0 -> wr_reg state rd (Int64.add state.regs.(rd) qimm)
       | 5,1 -> wr_reg state rd (Int64.sub state.regs.(rd) qimm)
@@ -357,15 +366,16 @@ let run_inst state =
       let q_a_imm = imm_to_qimm a_imm in
       let taken = eval_condition lo state.regs.(rd) qimm in
       terminate_output state;
+      let _ = Predictors.predict_and_train perf.bp (Int64.to_int state.ip) imm taken in
       if (taken) then state.ip <- q_a_imm
     end
   | _ -> raise (UnknownInstructionAt (Int64.to_int state.ip))
 
 
-let run state =
+let run perf state =
   state.running <- true;
   while state.running && state.ip >= Int64.zero do
-    run_inst state
+    run_inst perf state
   done;
   begin
     match state.tracefile with

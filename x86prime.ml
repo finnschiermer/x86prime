@@ -61,6 +61,11 @@ exception NoValidProgram
 exception UnknownEntryPoint of string
 exception InvalidArgument of string
 
+(* performance controls *)
+let p_type = ref "t"
+let p_idx_size = ref 12
+let p_ret_size = ref 8
+
 let run entry =
   match !labels with
   | None -> raise NoValidProgram
@@ -70,7 +75,23 @@ let run entry =
       | Some(addr) -> begin
           Scanf.sscanf addr "%x" (fun x ->
               Machine.set_ip !machine x;
-              Machine.run !machine
+              let p_control : Machine.perf = {
+                  bp = begin match !p_type with
+                       | "t" -> Predictors.create_taken_predictor ()
+                       | "nt" -> Predictors.create_not_taken_predictor ()
+                       | "btfnt" -> Predictors.create_btfnt_predictor ()
+                       | "oracle" -> Predictors.create_oracle_predictor ()
+                       | "local" -> Predictors.create_local_predictor !p_idx_size
+                       | "gshare" -> Predictors.create_gshare_predictor !p_idx_size
+                       | _ -> raise (InvalidArgument !p_type)
+                       end;
+                  rp = Predictors.create_return_predictor !p_ret_size
+                } in
+              Machine.run p_control !machine;
+              let tries,hits = Predictors.predictor_get_results p_control.bp in
+              Printf.printf "Branch predictions %d   hits %d\n" tries hits;
+              let tries,hits = Predictors.predictor_get_results p_control.rp in
+              Printf.printf "Return predictions %d   hits %d\n" tries hits
             )
         end
     end
@@ -82,7 +103,11 @@ let cmd_spec = [
     ("-list", Arg.Set do_list, "list (transformed and/or assembled) program");
     ("-show", Arg.Set do_show, "show each simulation step (requires -run)");
     ("-tracefile", Arg.Set_string tracefile_name, "<name of file> create a trace file for later verification (requires -run)");
-    ("-run", Arg.Set_string entry_name, "<name of function> starts simulation at indicated function (requires -asm)")]
+    ("-run", Arg.Set_string entry_name, "<name of function> starts simulation at indicated function (requires -asm)");
+    ("-bp_type", Arg.Set_string p_type, "t/nt/btfnt/oracle/local/gshare select type of branch predictor");
+    ("-bp_size", Arg.Set_int p_idx_size, "<size> select number of bits used to index branch predictor");
+    ("-rp_size", Arg.Set_int p_ret_size, "<size> select number of entries in return predictor")
+  ]
 
 let id s = 
   Printf.printf "Unknown argument '%s' - run with -h for help\n" s;

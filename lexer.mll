@@ -51,6 +51,7 @@ rule read = parse
 | "@function" { FUNCTION }
 | "@object" { OBJECT }
 | directive [^'\n']*  { DIR(get lexbuf) }
+| ignored [^'\n']* { IGN(get lexbuf) }
 | start_proc { FUN_START }
 | nl        { L.new_line lexbuf; LINE  }
 | '('       { LPAR          }
@@ -100,10 +101,6 @@ rule read = parse
 | "$"       { DOLLAR }
 | num       { NUM(get lexbuf) }
 | id        { ID(get lexbuf)}
-| ignored [^'\n']* { IGN(get lexbuf) }
-| "."  { eoline lexbuf }
 | eof       { EOF           }
 | _         { raise (Error (Printf.sprintf "unhandled '%s' - in: " (get lexbuf))) }
 
-and eoline = parse
-| [^'\n']*   { read lexbuf }

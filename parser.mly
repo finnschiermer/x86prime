@@ -29,7 +29,7 @@
 %start <Ast.line> aline
 %%
 aline:
- | k = ID COLON  { Ast.Label(k) }
+ | k = ID COLON                      { Ast.Label(k) }
  | i = ALU2 v1 = arg COMMA v2 = arg  { Ast.Alu2(i, v1, v2) }
  | i = MOVE v1 = arg COMMA v2 = arg  { Ast.Move2(i, v1, v2) }
  | i = PUPO v1 = arg                 { Ast.PuPo(i, v1) }

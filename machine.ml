@@ -237,7 +237,7 @@ let disas_inst state =
   let second_byte = fetch_from_offs state 1 in
   let (rd,rs) = split_byte second_byte in
   match hi,lo with
-  | 0,0 -> Ast.Ctl1(RET,Reg(disas_reg rd));
+  | 0,0 -> Ast.Ctl1(RET,Reg(disas_reg rs));
   | 1,0 -> Ast.Alu2(ADD,Reg(disas_reg rs), Reg(disas_reg rd));
   | 1,1 -> Ast.Alu2(SUB,Reg(disas_reg rs), Reg(disas_reg rd));
   | 1,2 -> Ast.Alu2(AND,Reg(disas_reg rs), Reg(disas_reg rd));

@@ -34,7 +34,7 @@ let start_proc = ".cfi_startproc"
 let directive = ".text" | ".globl" | ".cfi_endproc" | ".size" | ".section" | ".file" | ".ident"
     |  ".p2align" |  ".data" 
 let ignored = ".cfi_def_cfa_offset" | ".cfi_offset" | ".cfi_remember_state" | ".cfi_restore" 
-    | ".cfi_def_cfa" | ".cfi_def_cfa_register"
+    | ".cfi_def_cfa" | ".cfi_def_cfa_register" | ".subsections_via_symbols"
 
 let regs32 = "%eax" | "%ebx" | "%ecx" | "%edx" | "%ebp" | "%esi" | "%edi" | "%esp"
 let regs64 = "%rax" | "%rbx" | "%rcx" | "%rdx" | "%rbp" | "%rsi" | "%rdi" | "%rsp"

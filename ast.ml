@@ -39,6 +39,7 @@
   | Ctl1 of opcode * op_spec
   | Ctl0 of opcode
   | Quad of string
+  | Comm of string * int * int
   | Align of string
   | Directive of string
   | Ignored of string

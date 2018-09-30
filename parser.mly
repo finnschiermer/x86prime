@@ -12,6 +12,7 @@
 %token <Ast.opcode> CTL3
 %token COLON
 %token QUAD
+%token COMM
 %token ALIGN
 %token TYPE
 %token FUNCTION
@@ -40,6 +41,7 @@ aline:
  | i = CTL2 im = ID COMMA ri = REG   { Ast.Ctl2(i, EaD(im), Reg(ri)) }
  | i = CTL0                          { Ast.Ctl0(i) }
  | QUAD i = NUM                      { Ast.Quad(i) }
+ | COMM s = ID COMMA sz = NUM COMMA aln = NUM  { Ast.Comm(s, int_of_string sz, int_of_string aln) }
  | ALIGN i = NUM                     { Ast.Align(i) }
  | s = DIR                           { Ast.Directive(s) }
  | s = IGN                           { Ast.Ignored(s) }

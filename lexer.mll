@@ -52,6 +52,7 @@ rule read = parse
 | "@object" { OBJECT }
 | directive [^'\n']*  { DIR(get lexbuf) }
 | ignored [^'\n']* { IGN(get lexbuf) }
+| '#' [^'\n']* { IGN(get lexbuf) }
 | start_proc { FUN_START }
 | nl        { L.new_line lexbuf; LINE  }
 | '('       { LPAR          }
@@ -77,6 +78,8 @@ rule read = parse
 | "cmpq"     { ALU2(CMP)   }
 | "movl"    { MOVE(MOV) }
 | "movq"    { MOVE(MOV) }
+| "in"      { IN }
+| "out"     { OUT }
 | "rep ret" { CTL0(RET) }
 | "ret"     { if !translating then CTL0(RET) else CTL1(RET) }
 | "jne"     { CTL1(Jcc(NE)) }

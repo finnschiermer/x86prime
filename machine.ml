@@ -4,6 +4,9 @@ type registers = Int64.t array
 type perf = { 
     bp : Predictors.predictor;
     rp : Predictors.predictor;
+    l2 : Cache.cache;
+    i : Cache.cache;
+    d : Cache.cache;
   }
 
 type state = {
@@ -115,6 +118,7 @@ let imm_to_qimm imm =
 
 exception UnknownInstructionAt of int
 exception UnimplementedCondition of int
+exception UnknownPort of int
 
 let split_byte byte = (byte lsr 4, byte land 0x0F)
 
@@ -242,6 +246,8 @@ let disas_inst state =
   let (rd,rs) = split_byte second_byte in
   match hi,lo with
   | 0,0 -> Ast.Ctl1(RET,Reg(disas_reg rs));
+  | 0,1 -> Ast.In(Printf.sprintf "%d" rs,disas_reg rd)
+  | 0,2 -> Ast.Out(disas_reg rd,Printf.sprintf "%d" rs)
   | 1,0 -> Ast.Alu2(ADD,Reg(disas_reg rs), Reg(disas_reg rd));
   | 1,1 -> Ast.Alu2(SUB,Reg(disas_reg rs), Reg(disas_reg rd));
   | 1,2 -> Ast.Alu2(AND,Reg(disas_reg rs), Reg(disas_reg rd));
@@ -293,9 +299,19 @@ let disas_inst state =
 
 let terminate_output state = if state.show then align_output state
 
+let perform_output port value = 
+  if port = 0 then Printf.printf "%Lx " value
+  else raise (UnknownPort port)
+
+let perform_input port =
+  if port = 0 then Int64.of_int (read_int ())
+  else if port = 1 then Random.int64 Int64.max_int
+  else raise (UnknownPort port)
+
 let run_inst perf state =
   log_ip state;
   if state.show then state.disas <- Some(disas_inst state);
+  let _ = Cache.cache_read perf.i state.ip 0 in
   let first_byte = fetch_first state in
   let (hi,lo) = split_byte first_byte in
   let second_byte = fetch state in
@@ -312,6 +328,8 @@ let run_inst perf state =
           if state.show then Printf.printf "\nTerminating. Return to address %Lx\n" ret_addr
         end
     end
+  | 0,1 -> wr_reg state rd (perform_input rs)
+  | 0,2 -> terminate_output state; perform_output rd state.regs.(rs)
   | 1,0 -> wr_reg state rd (Int64.add state.regs.(rd) state.regs.(rs))
   | 1,1 -> wr_reg state rd (Int64.sub state.regs.(rd) state.regs.(rs))
   | 1,2 -> wr_reg state rd (Int64.logand state.regs.(rd) state.regs.(rs))
@@ -319,8 +337,14 @@ let run_inst perf state =
   | 1,4 -> wr_reg state rd (Int64.logxor state.regs.(rd) state.regs.(rs))
   | 1,5 -> wr_reg state rd (Int64.mul state.regs.(rd) state.regs.(rs))
   | 2,1 -> wr_reg state rd state.regs.(rs)
-  | 3,1 -> wr_reg state rd (Memory.read_quad state.mem state.regs.(rs))
-  | 3,9 -> wr_mem state state.regs.(rs) state.regs.(rd)
+  | 3,1 -> begin
+      let _ = Cache.cache_read perf.d state.regs.(rs) 0 in
+      wr_reg state rd (Memory.read_quad state.mem state.regs.(rs))
+    end
+  | 3,9 -> begin
+      let _ = Cache.cache_write perf.d state.regs.(rs) 0 in
+      wr_mem state state.regs.(rs) state.regs.(rd)
+    end
   | 4,_ | 5,_ | 6,_ | 7,_ -> begin (* instructions with 2 bytes + 1 immediate *)
       let imm = fetch_imm state in
       let qimm = imm_to_qimm imm in
@@ -341,8 +365,16 @@ let run_inst perf state =
       | 5,4 -> wr_reg state rd (Int64.logxor state.regs.(rd) qimm)
       | 5,5 -> wr_reg state rd (Int64.mul state.regs.(rd) qimm)
       | 6,4 -> wr_reg state rd qimm
-      | 7,5 -> wr_reg state rd (Memory.read_quad state.mem (Int64.add qimm state.regs.(rs)))
-      | 7,0xD -> wr_mem state (Int64.add qimm state.regs.(rs)) state.regs.(rd)
+      | 7,5 -> begin
+          let a = Int64.add qimm state.regs.(rs) in
+          let _ = Cache.cache_read perf.d a 0 in
+          wr_reg state rd (Memory.read_quad state.mem a)
+        end
+      | 7,0xD -> begin
+          let a = Int64.add qimm state.regs.(rs) in
+          let _ = Cache.cache_write perf.d a 0 in
+          wr_mem state a state.regs.(rd)
+        end
       | _ -> raise (UnknownInstructionAt (Int64.to_int state.ip))
     end
   | 8,_ | 9,_ | 10,_ | 11,_ -> begin (* leaq *)

@@ -50,9 +50,14 @@ let rec cache_access cache address time is_write =
   let index = quad_offset lsr index_shift in
   let quad_offset_in_block = quad_offset - (index lsl index_shift) in
   let found = ref None in
-  let assoc_end = Array.length cache.ways in
+  let assoc_end = Array.length cache.ways.(index) in
   let assoc = ref 0 in
-  while !found == None && !assoc < assoc_end do
+  if is_write then
+    cache.num_writes <- 1 + cache.num_writes
+  else
+    cache.num_reads <- 1 + cache.num_reads;
+  (* search for cache hit *)
+  while !found = None && !assoc < assoc_end do
     let entry = cache.ways.(index).(!assoc) in
     begin match entry.tag with
     | Some(e) -> if e = tag then found := Some(!assoc,entry)
@@ -61,7 +66,8 @@ let rec cache_access cache address time is_write =
     assoc := 1 + !assoc
   done;
   match !found with 
-  | Some(idx,entry) -> begin (* MRU update *)
+  | Some(idx,entry) -> begin (* Hit, MRU update *)
+      cache.num_hits <- 1 + cache.num_hits;
       for i = idx - 1 downto 0 do
         cache.ways.(index).(i + 1) <- cache.ways.(index).(i)
       done;
@@ -69,7 +75,7 @@ let rec cache_access cache address time is_write =
       cache.ways.(index).(0) <- entry;
       max time entry.block.(quad_offset_in_block)
     end
-  | None -> begin (* Discard LRU entry, add new one first in MRU order *)
+  | None -> begin (* Miss, Discard LRU entry, add new one first in MRU order *)
       for i = assoc_end - 2 downto 0 do
         cache.ways.(index).(i + 1) <- cache.ways.(index).(i)
       done;
@@ -88,7 +94,9 @@ let rec cache_access cache address time is_write =
       max time new_entry.block.(quad_offset_in_block)
     end
 
-let cache_read cache address time = cache_access cache address time false
+let cache_read cache address time = 
+    cache_access cache address time false
 
-let cache_write cache address time = cache_access cache address time true
+let cache_write cache address time = 
+    cache_access cache address time true
 

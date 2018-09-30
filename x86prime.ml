@@ -92,6 +92,7 @@ let run entry =
       | Some(addr) -> begin
           Scanf.sscanf addr "%x" (fun x ->
               Machine.set_ip !machine x;
+              let l2 = Cache.cache_create !l2_idx_bits !l2_blk_bits !l2_assoc (MainMemory !mem_latency) in
               let p_control : Machine.perf = {
                   bp = begin match !p_type with
                        | "t" -> Predictors.create_taken_predictor ()
@@ -102,13 +103,27 @@ let run entry =
                        | "gshare" -> Predictors.create_gshare_predictor !p_idx_size
                        | _ -> raise (InvalidArgument !p_type)
                        end;
-                  rp = Predictors.create_return_predictor !p_ret_size
+                  rp = Predictors.create_return_predictor !p_ret_size;
+                  l2 = l2;
+                  i = Cache.cache_create !i_idx_bits !i_blk_bits !i_assoc (Cache l2);
+                  d = Cache.cache_create !d_idx_bits !d_blk_bits !d_assoc (Cache l2);
                 } in
               Machine.run p_control !machine;
               let tries,hits = Predictors.predictor_get_results p_control.bp in
-              Printf.printf "Branch predictions %d   hits %d\n" tries hits;
+              let mr = (float_of_int (tries-hits)) /. (float_of_int (tries)) in
+              Printf.printf "Branch predictions %d   hits %d    missrate: %f\n" tries hits mr;
               let tries,hits = Predictors.predictor_get_results p_control.rp in
-              Printf.printf "Return predictions %d   hits %d\n" tries hits
+              let mr = (float_of_int (tries-hits)) /. (float_of_int (tries)) in
+              Printf.printf "Return predictions %d   hits %d    missrate: %f\n" tries hits mr;
+              let r,w,h = Cache.cache_get_stats p_control.l2 in
+              let mr = (float_of_int (r+w-h)) /. (float_of_int (r+w)) in
+              Printf.printf "L2-Cache reads: %d   writes: %d   hits: %d   missrate: %f\n" r w h mr;
+              let r,w,h = Cache.cache_get_stats p_control.i in
+              let mr = (float_of_int (r+w-h)) /. (float_of_int (r+w)) in
+              Printf.printf "I-Cache reads: %d   writes: %d   hits: %d   missrate: %f\n" r w h mr;
+              let r,w,h = Cache.cache_get_stats p_control.d in
+              let mr = (float_of_int (r+w-h)) /. (float_of_int (r+w)) in
+              Printf.printf "D-Cache reads: %d   writes: %d   hits: %d   missrate: %f\n" r w h mr;
             )
         end
     end
@@ -129,6 +144,14 @@ let cmd_spec = [
     ("-d_lat", Arg.Set_int d_latency, "<latency> latency of L1 D-cache read");
     ("-d_idx_sz", Arg.Set_int d_idx_bits, "<size> number of bits used for indexing L1 D-cache");
     ("-d_blk_sz", Arg.Set_int d_blk_bits, "<size> number of bits used to address byte in block of L1 D-cache");
+    ("-i_assoc", Arg.Set_int i_assoc, "<assoc> associativity of L1 I-cache");
+    ("-i_lat", Arg.Set_int i_latency, "<latency> latency of L1 I-cache read");
+    ("-i_idx_sz", Arg.Set_int i_idx_bits, "<size> number of bits used for indexing L1 I-cache");
+    ("-i_blk_sz", Arg.Set_int i_blk_bits, "<size> number of bits used to address byte in block of L1 I-cache");
+    ("-l2_assoc", Arg.Set_int l2_assoc, "<assoc> associativity of L2 cache");
+    ("-l2_lat", Arg.Set_int l2_latency, "<latency> latency of L2 cache read");
+    ("-l2_idx_sz", Arg.Set_int l2_idx_bits, "<size> number of bits used for indexing L2 cache");
+    ("-l2_blk_sz", Arg.Set_int l2_blk_bits, "<size> number of bits used to address byte in block of L2 cache");
   ]
 
 let id s = 

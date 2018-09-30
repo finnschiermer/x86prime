@@ -3,6 +3,9 @@ type state
 type perf = { 
     bp : Predictors.predictor;
     rp : Predictors.predictor;
+    l2 : Cache.cache;
+    i : Cache.cache;
+    d : Cache.cache;
   }
 
 

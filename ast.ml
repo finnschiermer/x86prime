@@ -34,6 +34,8 @@
   | Alu2 of opcode * op_spec * op_spec
   | PuPo of opcode * op_spec
   | Move2 of opcode * op_spec * op_spec
+  | In of string * string
+  | Out of string * string
   | Ctl3 of opcode * op_spec * op_spec * op_spec
   | Ctl2 of opcode * op_spec * op_spec
   | Ctl1 of opcode * op_spec

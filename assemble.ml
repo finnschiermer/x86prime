@@ -96,6 +96,8 @@ let assemble_line env line : assem =
       let gen l : assem = Assembly ("?", (String.concat "" l), insn) in
       match insn with
       | Ctl1(RET,Reg(rs)) ->                       gen ["0"; "0"; "0"; asm_reg rs]
+      | In(port,rd) ->                             gen ["0"; "1"; asm_reg rd; port]
+      | Out(rs,port) ->                            gen ["0"; "2"; port; asm_reg rs]
 
         (* alu/move reg/reg operations, 2 byte encoding: *)
       | Alu2(ADD,Reg(rs),Reg(rd)) ->               gen ["1"; "0"; asm_reg rd; asm_reg rs]
@@ -151,7 +153,7 @@ let assemble_line env line : assem =
 let should_translate line =
   let open Ast in
   match line with
-  | Ok(Alu2(_)) | Ok(Move2(_)) | Ok(Ctl1(_)) | Ok(Ctl2(_))
+  | Ok(Alu2(_)) | Ok(Move2(_)) | Ok(Ctl1(_)) | Ok(Ctl2(_)) | Ok(In(_)) | Ok(Out(_))
     | Ok(Ctl0(_)) | Ok(Ctl3(_)) | Ok(Label(_)) | Ok(Quad(_)) | Ok(Align(_)) | Error(_) -> true
   | _ -> false
 

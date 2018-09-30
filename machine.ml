@@ -273,11 +273,11 @@ let disas_inst state =
       match lo with
       | 1 -> Ast.Alu2(LEA,EaS(disas_reg rs),Reg(disas_reg rd))
       | 2 -> Ast.Alu2(LEA,EaZ(disas_reg rz,disas_sh sh),Reg(disas_reg rd))
-      | 3 -> Ast.Alu2(LEA,EaZS(disas_reg rs,disas_reg rs,disas_sh sh),Reg(disas_reg rd))
+      | 3 -> Ast.Alu2(LEA,EaZS(disas_reg rs,disas_reg rz,disas_sh sh),Reg(disas_reg rd))
       | 4 -> Ast.Alu2(LEA,EaD(disas_mem imm),Reg(disas_reg rd))
       | 5 -> Ast.Alu2(LEA,EaDS(disas_imm imm, disas_reg rs),Reg(disas_reg rd))
       | 6 -> Ast.Alu2(LEA,EaDZ(disas_imm imm, disas_reg rz,disas_sh sh),Reg(disas_reg rd))
-      | 7 -> Ast.Alu2(LEA,EaDZS(disas_imm imm, disas_reg rs,disas_reg rs,disas_sh sh),Reg(disas_reg rd))
+      | 7 -> Ast.Alu2(LEA,EaDZS(disas_imm imm, disas_reg rs,disas_reg rz,disas_sh sh),Reg(disas_reg rd))
       | _ -> raise (UnknownInstructionAt (Int64.to_int state.ip))
     end
   | 15,_ -> begin (* cbcc with both imm and target *)

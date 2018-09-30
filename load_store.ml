@@ -17,6 +17,7 @@ let rec convert_loop lines =
     | Ok(Move2(_,Reg(_),EaS(_))) | Ok(Move2(_,Reg(_),EaDS(_,_))) as insn :: other -> insn::(convert_loop other)
   | Ok(Move2(_,cplx,Reg(_))) as insn :: other -> (inject_leaq insn other)
   | Ok(Move2(_,Reg(_),cplx)) as insn :: other -> (inject_leaq insn other)
+  | Ok(Move2(_,Imm(_),cplx)) as insn :: other -> (inject_leaq insn other)
   | hd :: tl -> hd :: (convert_loop tl)
   | [] -> []
 
@@ -55,6 +56,12 @@ and inject_leaq insn tail =
       let insn1 = Ok(Alu2(LEA,cplx,Reg("%r15"))) in
       let trigger = Ok(Move2(opc,Reg(r),EaS("%r15"))) in
      insn1 :: (convert_loop (trigger :: tail))
+    end
+  | Ok(Move2(opc,Imm(i),cplx)) -> begin
+      let insn1 = Ok(Alu2(LEA,cplx,Reg("%r15"))) in
+      let insn2 = Ok(Move2(opc,Imm(i),Reg("%r14"))) in
+      let trigger = Ok(Move2(opc,Reg("%r14"),EaS("%r15"))) in
+     insn1 :: insn2 ::(convert_loop (trigger :: tail))
     end
   | _ -> raise Address_mode_conversion_failed
 

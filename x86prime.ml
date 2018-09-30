@@ -66,6 +66,23 @@ let p_type = ref "t"
 let p_idx_size = ref 12
 let p_ret_size = ref 8
 
+let d_assoc = ref 4
+let d_idx_bits = ref 7
+let d_blk_bits = ref 5
+let d_latency = ref 3
+
+let i_assoc = ref 4
+let i_idx_bits = ref 7
+let i_blk_bits = ref 5
+let i_latency = ref 3
+
+let l2_assoc = ref 4
+let l2_idx_bits = ref 11
+let l2_blk_bits = ref 5
+let l2_latency = ref 16
+
+let mem_latency = ref 100
+
 let run entry =
   match !labels with
   | None -> raise NoValidProgram
@@ -106,7 +123,12 @@ let cmd_spec = [
     ("-run", Arg.Set_string entry_name, "<name of function> starts simulation at indicated function (requires -asm)");
     ("-bp_type", Arg.Set_string p_type, "t/nt/btfnt/oracle/local/gshare select type of branch predictor");
     ("-bp_size", Arg.Set_int p_idx_size, "<size> select number of bits used to index branch predictor");
-    ("-rp_size", Arg.Set_int p_ret_size, "<size> select number of entries in return predictor")
+    ("-rp_size", Arg.Set_int p_ret_size, "<size> select number of entries in return predictor");
+    ("-mem_lat", Arg.Set_int mem_latency, "<clks> number of clock cycles to read from main memory");
+    ("-d_assoc", Arg.Set_int d_assoc, "<assoc> associativity of L1 D-cache");
+    ("-d_lat", Arg.Set_int d_latency, "<latency> latency of L1 D-cache read");
+    ("-d_idx_sz", Arg.Set_int d_idx_bits, "<size> number of bits used for indexing L1 D-cache");
+    ("-d_blk_sz", Arg.Set_int d_blk_bits, "<size> number of bits used to address byte in block of L1 D-cache");
   ]
 
 let id s = 

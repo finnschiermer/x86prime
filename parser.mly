@@ -54,7 +54,10 @@ arg:
  | LPAR s1 = REG COMMA s2 = REG COMMA i = NUM RPAR { Ast.EaZS(s1,s2,i) }
  | s = ID LPAR s1 = REG RPAR { if s1 = "%rip" then Ast.EaD(s) else Ast.EaDS(s, s1) }
  | s = NUM LPAR s1 = REG RPAR { if s1 = "%rip" then Ast.EaD(s) else Ast.EaDS(s, s1) }
-(* FIXME: rest of the Ea modes missing *)
+ | s = ID LPAR s1 = REG COMMA s2 = REG RPAR { Ast.EaDZS(s,s1,s2,"1") }
+ | s = ID LPAR s1 = REG COMMA s2 = REG COMMA i = NUM RPAR { Ast.EaDZS(s,s1,s2,i) }
+ | s = NUM LPAR s1 = REG COMMA s2 = REG RPAR { Ast.EaDZS(s,s1,s2,"1") }
+ | s = NUM LPAR s1 = REG COMMA s2 = REG COMMA i = NUM RPAR { Ast.EaDZS(s,s1,s2,i) }
  | DOLLAR s = ID   { Ast.Imm(s) }
  | DOLLAR i = NUM  { Ast.Imm(i) }
  | s = ID   { Ast.EaD(s) }

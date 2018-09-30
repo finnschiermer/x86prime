@@ -100,6 +100,7 @@ rule read = parse
 | "popq"     { PUPO(POP) }
 | "imulq"   { ALU2(MUL) }
 | ".quad"   { QUAD }
+| ".comm"   { COMM }
 | ".align"  { ALIGN }
 | "$"       { DOLLAR }
 | num       { NUM(get lexbuf) }

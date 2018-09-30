@@ -94,6 +94,7 @@ let assemble_line env line : assem =
   match line with
   | Ok(insn) -> begin
       let gen l : assem = Assembly ("?", (String.concat "" l), insn) in
+      let gen_zeros num : assem = Assembly("?", (String.make (2 * num) '0'), insn) in
       match insn with
       | Ctl1(RET,Reg(rs)) ->                       gen ["0"; "0"; "0"; asm_reg rs]
       | In(port,rd) ->                             gen ["0"; "1"; asm_reg rd; port]
@@ -144,6 +145,7 @@ let assemble_line env line : assem =
       | Ctl3(CBcc(cond),Imm(i),Reg(rd),EaD(m)) ->  gen ["F"; asm_cond cond; asm_reg rd; "0"; asm_imm env i; asm_mem env m]
 
       | Quad(q) -> gen [asm_imm64 env q]
+      | Comm(nm,sz,aln) -> gen_zeros sz
       | Label(lab) -> gen [""]
       | Align(_) -> gen [""]
       | something -> Source(something)
@@ -154,7 +156,7 @@ let should_translate line =
   let open Ast in
   match line with
   | Ok(Alu2(_)) | Ok(Move2(_)) | Ok(Ctl1(_)) | Ok(Ctl2(_)) | Ok(In(_)) | Ok(Out(_))
-    | Ok(Ctl0(_)) | Ok(Ctl3(_)) | Ok(Label(_)) | Ok(Quad(_)) | Ok(Align(_)) | Error(_) -> true
+    | Ok(Ctl0(_)) | Ok(Ctl3(_)) | Ok(Label(_)) | Ok(Quad(_)) | Ok(Comm(_)) | Ok(Align(_)) | Error(_) -> true
   | _ -> false
 
 let print_assembly_line line =
@@ -167,6 +169,10 @@ let print_assembly lines =
 
 let rec assign_addresses curr_add lines =
   match lines with
+  | Assembly(_,encoding,Comm(nm,sz,aln)) :: rest -> begin
+        let aligned = (curr_add + (aln - 1)) land (lnot (aln - 1)) in
+        Assembly(Printf.sprintf "%08x" aligned, encoding, Comm(nm,sz,aln)) :: assign_addresses (aligned + sz) rest
+      end
   | Assembly(_,encoding,Align(q)) :: rest -> begin
       let alignment = int_of_string q in
       let aligned = (curr_add + (alignment - 1)) land (lnot (alignment - 1)) in
@@ -185,6 +191,7 @@ let rec assign_addresses curr_add lines =
 let rec gather_env env lines =
   match lines with
   | Assembly(addr, encoding, Ast.Label(lab)) :: rest -> gather_env ((lab, addr) :: env) rest
+  | Assembly(addr, encoding, Ast.Comm(nm,sz,aln)) :: rest -> gather_env ((nm, addr) :: env) rest
   | s :: rest -> gather_env env rest
   | [] -> env
 

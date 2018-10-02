@@ -7,6 +7,14 @@ type perf = {
     l2 : Cache.cache;
     i : Cache.cache;
     d : Cache.cache;
+    fetch_start : Resource.resource;
+    fetch_decode_q : Resource.resource;
+    rob : Resource.resource;
+    alu : Resource.resource;
+    agen : Resource.resource;
+    dcache : Resource.resource;
+    retire : Resource.resource;
+    reg_ready : int array;
   }
 
 type state = {
@@ -308,10 +316,97 @@ let perform_input port =
   else if port = 1 then Random.int64 Int64.max_int
   else raise (UnknownPort port)
 
+let model_fetch_decode perf state =
+  let start = Resource.acquire perf.fetch_start 0 in
+  let start = Resource.acquire perf.fetch_decode_q start in
+  let got_inst = Cache.cache_read perf.i state.ip start in
+  let rob_entry = Resource.acquire perf.rob (got_inst + 1) in
+  Resource.use perf.fetch_start start (start + 1);
+  Resource.use perf.fetch_decode_q start rob_entry;
+  rob_entry
+ (* FIXME if in-order, we need to wait for the actual execution resource to be allocated *)
+
+let model_return perf state rs =
+  let rob_entry = model_fetch_decode perf state in
+  let ready = max perf.reg_ready.(rs) rob_entry in
+  let exec_start = Resource.acquire perf.alu ready in
+  let time_retire = Resource.acquire perf.retire (exec_start + 2) in
+  let addr = state.regs.(rs) in
+  let predicted = Predictors.predict_return perf.rp (Int64.to_int addr) in
+  if predicted then
+    Resource.use_all perf.fetch_start (Resource.get_earliest perf.fetch_start + 1)
+  else
+    Resource.use_all perf.fetch_start (exec_start + 1);
+  Resource.use perf.alu exec_start (exec_start + 1);
+  Resource.use perf.retire time_retire (time_retire + 1);
+  Resource.use perf.rob rob_entry time_retire
+
+let model_call perf state rd addr =
+  let rob_entry = model_fetch_decode perf state in
+  let exec_start = Resource.acquire perf.alu rob_entry in
+  let time_retire = Resource.acquire perf.retire (exec_start + 2) in
+  Predictors.note_call perf.rp (Int64.to_int addr);
+  Resource.use_all perf.fetch_start (Resource.get_earliest perf.fetch_start + 1);
+  Resource.use perf.alu exec_start (exec_start + 1);
+  Resource.use perf.retire time_retire (time_retire + 1);
+  Resource.use perf.rob rob_entry time_retire;
+  perf.reg_ready.(rd) <- exec_start + 1
+
+let model_jmp perf state =
+  let rob_entry = model_fetch_decode perf state in
+  let exec_start = Resource.acquire perf.alu rob_entry in
+  let time_retire = Resource.acquire perf.retire (exec_start + 2) in
+  Resource.use_all perf.fetch_start (Resource.get_earliest perf.fetch_start + 1);
+  Resource.use perf.alu exec_start (exec_start + 1);
+  Resource.use perf.retire time_retire (time_retire + 1);
+  Resource.use perf.rob rob_entry time_retire
+
+let model_nop perf state =
+  let rob_entry = model_fetch_decode perf state in
+  let exec_start = Resource.acquire perf.alu rob_entry in
+  let time_retire = Resource.acquire perf.retire (exec_start + 2) in
+  Resource.use perf.alu exec_start (exec_start + 1);
+  Resource.use perf.retire time_retire (time_retire + 1);
+  Resource.use perf.rob rob_entry time_retire
+
+let model_cond_branch perf state from_ip to_ip taken ops_ready =
+  let rob_entry = model_fetch_decode perf state in
+  let ready = max rob_entry ops_ready in
+  let exec_start = Resource.acquire perf.alu ready in
+  let exec_done = exec_start + 1 in
+  let time_retire = Resource.acquire perf.retire (exec_done + 1) in
+  let predicted = Predictors.predict_and_train perf.bp from_ip to_ip taken in
+  if not predicted then
+    Resource.use_all perf.fetch_start exec_done
+  else if taken then
+    Resource.use_all perf.fetch_start (Resource.get_earliest perf.fetch_start + 1);
+  Resource.use perf.alu exec_start (exec_done);
+  Resource.use perf.retire time_retire (time_retire + 1);
+  Resource.use perf.rob rob_entry time_retire
+
+let model_compute perf state rd ops_ready latency =
+  let rob_entry = model_fetch_decode perf state in
+  let ready = max rob_entry ops_ready in
+  let exec_start = Resource.acquire perf.alu ready in
+  let exec_done = exec_start + latency in
+  let time_retire = Resource.acquire perf.retire (exec_done + 1) in
+  Resource.use perf.alu exec_start (exec_done);
+  Resource.use perf.retire time_retire (time_retire + 1);
+  Resource.use perf.rob rob_entry time_retire;
+  perf.reg_ready.(rd) <- exec_done
+
+let model_mov_imm perf state rd = model_compute perf state rd 0 1
+let model_leaq perf state rd ops_ready = model_compute perf state rd ops_ready 1
+let model_mov_reg perf state rd rs = model_compute perf state rd (perf.reg_ready.(rs)) 1
+let model_alu_imm perf state rd = model_compute perf state rd (perf.reg_ready.(rd)) 1
+let model_mul_imm perf state rd = model_compute perf state rd (perf.reg_ready.(rd)) 3
+let model_alu_reg perf state rd rs = model_compute perf state rd (max perf.reg_ready.(rd) perf.reg_ready.(rs)) 1
+let model_mul_reg perf state rd rs = model_compute perf state rd (max perf.reg_ready.(rd) perf.reg_ready.(rs)) 3
+
+
 let run_inst perf state =
   log_ip state;
   if state.show then state.disas <- Some(disas_inst state);
-  let _ = Cache.cache_read perf.i state.ip 0 in
   let first_byte = fetch_first state in
   let (hi,lo) = split_byte first_byte in
   let second_byte = fetch state in
@@ -320,7 +415,7 @@ let run_inst perf state =
   | 0,0 -> begin
       terminate_output state;
       let ret_addr = state.regs.(rs) in (* return instruction *)
-      let _ = Predictors.predict_return perf.rp (Int64.to_int ret_addr) in
+      model_return perf state rs;
       state.ip <- ret_addr;
       if ret_addr <= Int64.zero then begin
           log_ip state; (* final IP value should be added to trace *)
@@ -328,15 +423,15 @@ let run_inst perf state =
           if state.show then Printf.printf "\nTerminating. Return to address %Lx\n" ret_addr
         end
     end
-  | 0,1 -> wr_reg state rd (perform_input rs)
-  | 0,2 -> terminate_output state; perform_output rd state.regs.(rs)
-  | 1,0 -> wr_reg state rd (Int64.add state.regs.(rd) state.regs.(rs))
-  | 1,1 -> wr_reg state rd (Int64.sub state.regs.(rd) state.regs.(rs))
-  | 1,2 -> wr_reg state rd (Int64.logand state.regs.(rd) state.regs.(rs))
-  | 1,3 -> wr_reg state rd (Int64.logor state.regs.(rd) state.regs.(rs))
-  | 1,4 -> wr_reg state rd (Int64.logxor state.regs.(rd) state.regs.(rs))
-  | 1,5 -> wr_reg state rd (Int64.mul state.regs.(rd) state.regs.(rs))
-  | 2,1 -> wr_reg state rd state.regs.(rs)
+  | 0,1 -> model_mov_reg perf state rd rs; wr_reg state rd (perform_input rs)
+  | 0,2 -> model_nop perf state; terminate_output state; perform_output rd state.regs.(rs)
+  | 1,0 -> model_alu_reg perf state rd rs; wr_reg state rd (Int64.add state.regs.(rd) state.regs.(rs))
+  | 1,1 -> model_alu_reg perf state rd rs; wr_reg state rd (Int64.sub state.regs.(rd) state.regs.(rs))
+  | 1,2 -> model_alu_reg perf state rd rs; wr_reg state rd (Int64.logand state.regs.(rd) state.regs.(rs))
+  | 1,3 -> model_alu_reg perf state rd rs; wr_reg state rd (Int64.logor state.regs.(rd) state.regs.(rs))
+  | 1,4 -> model_alu_reg perf state rd rs; wr_reg state rd (Int64.logxor state.regs.(rd) state.regs.(rs))
+  | 1,5 -> model_mul_reg perf state rd rs; wr_reg state rd (Int64.mul state.regs.(rd) state.regs.(rs))
+  | 2,1 -> model_mov_reg perf state rs rd; wr_reg state rd state.regs.(rs)
   | 3,1 -> begin
       let _ = Cache.cache_read perf.d state.regs.(rs) 0 in
       wr_reg state rd (Memory.read_quad state.mem state.regs.(rs))
@@ -350,21 +445,27 @@ let run_inst perf state =
       let qimm = imm_to_qimm imm in
       match hi,lo with
       | 4,0xE -> begin
-          Predictors.note_call perf.rp (Int64.to_int state.ip);
-          wr_reg state rd state.ip; state.ip <- qimm (* call *)
+          wr_reg state rd state.ip; 
+          model_call perf state rd state.ip;
+          state.ip <- qimm (* call *)
         end
-      | 4,0xF -> terminate_output state; state.ip <- qimm (* jmp *)
+      | 4,0xF -> begin
+          terminate_output state; 
+          model_jmp perf state;
+          state.ip <- qimm (* jmp *)
+        end
       | 4,_ -> terminate_output state;
                let taken = eval_condition lo state.regs.(rd) state.regs.(rs) in
-               let _ = Predictors.predict_and_train perf.bp (Int64.to_int state.ip) imm taken in
+               let ops_ready = max perf.reg_ready.(rd) perf.reg_ready.(rs) in
+               model_cond_branch perf state (Int64.to_int state.ip) imm taken ops_ready;
                if taken then state.ip <- qimm
-      | 5,0 -> wr_reg state rd (Int64.add state.regs.(rd) qimm)
-      | 5,1 -> wr_reg state rd (Int64.sub state.regs.(rd) qimm)
-      | 5,2 -> wr_reg state rd (Int64.logand state.regs.(rd) qimm)
-      | 5,3 -> wr_reg state rd (Int64.logor state.regs.(rd) qimm)
-      | 5,4 -> wr_reg state rd (Int64.logxor state.regs.(rd) qimm)
-      | 5,5 -> wr_reg state rd (Int64.mul state.regs.(rd) qimm)
-      | 6,4 -> wr_reg state rd qimm
+      | 5,0 -> model_alu_imm perf state rd; wr_reg state rd (Int64.add state.regs.(rd) qimm)
+      | 5,1 -> model_alu_imm perf state rd; wr_reg state rd (Int64.sub state.regs.(rd) qimm)
+      | 5,2 -> model_alu_imm perf state rd; wr_reg state rd (Int64.logand state.regs.(rd) qimm)
+      | 5,3 -> model_alu_imm perf state rd; wr_reg state rd (Int64.logor state.regs.(rd) qimm)
+      | 5,4 -> model_alu_imm perf state rd; wr_reg state rd (Int64.logxor state.regs.(rd) qimm)
+      | 5,5 -> model_mul_imm perf state rd; wr_reg state rd (Int64.mul state.regs.(rd) qimm)
+      | 6,4 -> model_mov_imm perf state rd; wr_reg state rd qimm
       | 7,5 -> begin
           let a = Int64.add qimm state.regs.(rs) in
           let _ = Cache.cache_read perf.d a 0 in
@@ -389,6 +490,8 @@ let run_inst perf state =
                (Int64.add (if hasZ then Int64.shift_left state.regs.(rz) sh else Int64.zero)
                (if hasD then qimm else Int64.zero))
       in
+      let ops_ready = max (if hasS then perf.reg_ready.(rs) else 0) (if hasZ then perf.reg_ready.(rz) else 0) in
+      model_leaq perf state rd ops_ready;
       wr_reg state rd ea
     end
   | 15,_ -> begin (* cbcc with both imm and target *)
@@ -398,7 +501,7 @@ let run_inst perf state =
       let q_a_imm = imm_to_qimm a_imm in
       let taken = eval_condition lo state.regs.(rd) qimm in
       terminate_output state;
-      let _ = Predictors.predict_and_train perf.bp (Int64.to_int state.ip) imm taken in
+      model_cond_branch perf state (Int64.to_int state.ip) imm taken perf.reg_ready.(rd);
       if (taken) then state.ip <- q_a_imm
     end
   | _ -> raise (UnknownInstructionAt (Int64.to_int state.ip))

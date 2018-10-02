@@ -92,7 +92,7 @@ let run entry =
       | Some(addr) -> begin
           Scanf.sscanf addr "%x" (fun x ->
               Machine.set_ip !machine x;
-              let l2 = Cache.cache_create !l2_idx_bits !l2_blk_bits !l2_assoc (MainMemory !mem_latency) in
+              let l2 = Cache.cache_create !l2_idx_bits !l2_blk_bits !l2_assoc !l2_latency (MainMemory !mem_latency) in
               let p_control : Machine.perf = {
                   bp = begin match !p_type with
                        | "t" -> Predictors.create_taken_predictor ()
@@ -105,8 +105,16 @@ let run entry =
                        end;
                   rp = Predictors.create_return_predictor !p_ret_size;
                   l2 = l2;
-                  i = Cache.cache_create !i_idx_bits !i_blk_bits !i_assoc (Cache l2);
-                  d = Cache.cache_create !d_idx_bits !d_blk_bits !d_assoc (Cache l2);
+                  i = Cache.cache_create !i_idx_bits !i_blk_bits !i_assoc !i_latency (Cache l2);
+                  d = Cache.cache_create !d_idx_bits !d_blk_bits !d_assoc !d_latency (Cache l2);
+                  fetch_start = Resource.create "fetch-start" true 1 1000;
+                  fetch_decode_q = Resource.create "fetch-decode" true 4 1000;
+                  rob = Resource.create "reorder buffer" true 128 10000;
+                  alu = Resource.create "arithmetic" false 1 1000;
+                  agen = Resource.create "agen" true 1 1000;
+                  dcache = Resource.create "dcache" false 1 1000;
+                  retire = Resource.create "retire" true 1 1000;
+                  reg_ready = Array.make 16 0;
                 } in
               Machine.run p_control !machine;
               let tries,hits = Predictors.predictor_get_results p_control.bp in
@@ -124,6 +132,8 @@ let run entry =
               let r,w,h = Cache.cache_get_stats p_control.d in
               let mr = (float_of_int (r+w-h)) /. (float_of_int (r+w)) in
               Printf.printf "D-Cache reads: %d   writes: %d   hits: %d   missrate: %f\n" r w h mr;
+              let finished = Resource.get_earliest p_control.retire in
+              Printf.printf "Execution finished at %d\n" finished
             )
         end
     end

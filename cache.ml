@@ -8,6 +8,7 @@ type cache_set = cache_block array
 type cache = {
     index_bits : int;
     block_bits : int;
+    latency : int;
     ways : cache_set array;
     next_layer : memory_layer;
     mutable num_reads : int;
@@ -19,7 +20,7 @@ and memory_layer =
   | MainMemory of int
   | Cache of cache
 
-let cache_create index_bits block_bits assoc next_layer =
+let cache_create index_bits block_bits assoc latency next_layer =
 
   let block_size = 1 lsl (block_bits - 3) in
   let way_size = 1 lsl index_bits in
@@ -32,6 +33,7 @@ let cache_create index_bits block_bits assoc next_layer =
   {
     index_bits = index_bits;
     block_bits = block_bits;
+    latency = latency;
     ways = Array.init way_size cache_way_create;
     next_layer = next_layer;
     num_reads = 0;
@@ -73,7 +75,7 @@ let rec cache_access cache address time is_write =
       done;
       if is_write then entry.block.(quad_offset_in_block) <- time;
       cache.ways.(index).(0) <- entry;
-      max time entry.block.(quad_offset_in_block)
+      cache.latency + (max time entry.block.(quad_offset_in_block))
     end
   | None -> begin (* Miss, Discard LRU entry, add new one first in MRU order *)
       for i = assoc_end - 2 downto 0 do
@@ -91,7 +93,7 @@ let rec cache_access cache address time is_write =
       in
       if is_write then new_entry.block.(quad_offset_in_block) <- time;
       cache.ways.(index).(0) <- new_entry;
-      max time new_entry.block.(quad_offset_in_block)
+      cache.latency + (max time new_entry.block.(quad_offset_in_block))
     end
 
 let cache_read cache address time = 

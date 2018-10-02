@@ -100,6 +100,7 @@ rule read = parse
 | "pushq"    { PUPO(PUSH) }
 | "popq"     { PUPO(POP) }
 | "imulq"   { ALU2(MUL) }
+| "mulq"   { ALU2(MUL) }
 | ".quad"   { QUAD }
 | ".comm"   { COMM }
 | ".align"  { ALIGN }

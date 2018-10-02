@@ -34,7 +34,7 @@ aline:
  | i = ALU2 v1 = arg COMMA v2 = arg  { Ast.Alu2(i, v1, v2) }
  | i = MOVE v1 = arg COMMA v2 = arg  { Ast.Move2(i, v1, v2) }
  | i = PUPO v1 = arg                 { Ast.PuPo(i, v1) }
- | i = CTL3 v1 = NUM COMMA v2 = REG COMMA t = ID  { Ast.Ctl3(i, Ast.Imm(v1), Ast.Reg(v2), Ast.EaD(t)) }
+ | i = CTL3 DOLLAR v1 = NUM COMMA v2 = REG COMMA t = ID  { Ast.Ctl3(i, Ast.Imm(v1), Ast.Reg(v2), Ast.EaD(t)) }
  | i = CTL3 v1 = REG COMMA v2 = REG COMMA t = ID  { Ast.Ctl3(i, Ast.Reg(v1), Ast.Reg(v2), Ast.EaD(t)) }
  | i = CTL1 v1 = ID                  { Ast.Ctl1(i, EaD(v1)) }
  | i = CTL1 ri = REG                 { Ast.Ctl1(i, Reg(ri)) }

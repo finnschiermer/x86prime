@@ -48,18 +48,26 @@ aline:
  | TYPE s = ID COMMA FUNCTION        { Ast.Function(s) }
  | TYPE s = ID COMMA OBJECT          { Ast.Object(s) }
  | FUN_START                         { Ast.Fun_start }
+ | LINE                              { Ast.Ignored("") }
+ | EOF                               { Ast.Ignored("") }
 ;
 
 arg:
  | LPAR s1 = REG RPAR { Ast.EaS(s1) }
  | LPAR s1 = REG COMMA s2 = REG RPAR { Ast.EaZS(s1,s2,"1") }
+ | LPAR COMMA s2 = REG RPAR { Ast.EaZ(s2,"1") }
  | LPAR s1 = REG COMMA s2 = REG COMMA i = NUM RPAR { Ast.EaZS(s1,s2,i) }
+ | LPAR COMMA s2 = REG COMMA i = NUM RPAR { Ast.EaZ(s2,i) }
  | s = ID LPAR s1 = REG RPAR { if s1 = "%rip" then Ast.EaD(s) else Ast.EaDS(s, s1) }
  | s = NUM LPAR s1 = REG RPAR { if s1 = "%rip" then Ast.EaD(s) else Ast.EaDS(s, s1) }
  | s = ID LPAR s1 = REG COMMA s2 = REG RPAR { Ast.EaDZS(s,s1,s2,"1") }
  | s = ID LPAR s1 = REG COMMA s2 = REG COMMA i = NUM RPAR { Ast.EaDZS(s,s1,s2,i) }
  | s = NUM LPAR s1 = REG COMMA s2 = REG RPAR { Ast.EaDZS(s,s1,s2,"1") }
  | s = NUM LPAR s1 = REG COMMA s2 = REG COMMA i = NUM RPAR { Ast.EaDZS(s,s1,s2,i) }
+ | s = ID LPAR COMMA s2 = REG RPAR { Ast.EaDZ(s,s2,"1") }
+ | s = ID LPAR COMMA s2 = REG COMMA i = NUM RPAR { Ast.EaDZ(s,s2,i) }
+ | s = NUM LPAR COMMA s2 = REG RPAR { Ast.EaDZ(s,s2,"1") }
+ | s = NUM LPAR COMMA s2 = REG COMMA i = NUM RPAR { Ast.EaDZ(s,s2,i) }
  | DOLLAR s = ID   { Ast.Imm(s) }
  | DOLLAR i = NUM  { Ast.Imm(i) }
  | s = ID   { Ast.EaD(s) }

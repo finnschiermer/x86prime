@@ -30,26 +30,28 @@ let use_all resource time_finished =
 let get_earliest resource = resource.window_start
 
 let acquire resource earliest =
-  let earliest = ref (max earliest resource.window_start) in
+  let first_free = ref (max earliest resource.window_start) in
   let found = ref false in
   let timespan = Array.length resource.window in
   if resource.inorder then
-    while resource.window_start < !earliest do
+    while resource.window_start < !first_free do
       move_window resource
     done;
-  while !found do
-    while !earliest >= resource.window_start + timespan do
+  while not !found do
+    while !first_free >= resource.window_start + timespan do
       move_window resource
     done;
-    let index = !earliest mod timespan in
+    let index = !first_free mod timespan in
     if resource.window.(index) > 0 then
       found := true
     else
-      earliest := 1 + !earliest;
+      first_free := 1 + !first_free;
   done;
-  !earliest
+(*  Printf.printf "ACQ %s %d -> %d\n" resource.name earliest !first_free; *)
+  !first_free
 
 let use resource start finished =
+(*  Printf.printf "USE %s %d %d\n" resource.name start finished; *)
   let timespan = Array.length resource.window in
   while finished >= resource.window_start + timespan do
     move_window resource

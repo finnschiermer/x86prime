@@ -3,6 +3,7 @@
 %token COMMA
 %token LPAR
 %token RPAR
+%token SAR1
 %token <Ast.opcode> ALU2
 %token <Ast.opcode> MOVE
 %token <Ast.opcode> PUPO
@@ -33,6 +34,8 @@
 %%
 aline:
  | k = ID COLON                      { Ast.Label(k) }
+ | SAR1 v1 = arg                 { Ast.Alu2(Ast.SAR, Imm("1"), v1) }
+ | SAR1 v1 = arg COMMA v2 = arg      { Ast.Alu2(Ast.SAR, v1, v2) }
  | i = ALU2 v1 = arg COMMA v2 = arg  { Ast.Alu2(i, v1, v2) }
  | i = MOVE v1 = arg COMMA v2 = arg  { Ast.Move2(i, v1, v2) }
  | IN LPAR v1 = NUM RPAR COMMA v2 = REG  { Ast.In(v1, v2) }

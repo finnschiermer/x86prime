@@ -14,6 +14,7 @@ type perf = {
     dcache : Resource.resource;
     retire : Resource.resource;
     reg_ready : int array;
+    dec_lat : int
   }
 
 

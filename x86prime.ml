@@ -77,11 +77,14 @@ let i_blk_bits = ref 5
 let i_latency = ref 3
 
 let l2_assoc = ref 4
-let l2_idx_bits = ref 11
+let l2_idx_bits = ref 10
 let l2_blk_bits = ref 5
 let l2_latency = ref 16
 
 let mem_latency = ref 100
+let dec_latency = ref 1
+let pipe_width = ref 1
+let ooo = ref false
 
 let run entry =
   match !labels with
@@ -93,6 +96,8 @@ let run entry =
           Scanf.sscanf addr "%x" (fun x ->
               Machine.set_ip !machine x;
               let l2 = Cache.cache_create !l2_idx_bits !l2_blk_bits !l2_assoc !l2_latency (MainMemory !mem_latency) in
+              let num_alus = if !pipe_width > 2 then !pipe_width - 1 else !pipe_width in
+              let fd_queue_size = (1 + !i_latency + !dec_latency) * !pipe_width in
               let p_control : Machine.perf = {
                   bp = begin match !p_type with
                        | "t" -> Predictors.create_taken_predictor ()
@@ -107,14 +112,15 @@ let run entry =
                   l2 = l2;
                   i = Cache.cache_create !i_idx_bits !i_blk_bits !i_assoc !i_latency (Cache l2);
                   d = Cache.cache_create !d_idx_bits !d_blk_bits !d_assoc !d_latency (Cache l2);
-                  fetch_start = Resource.create "fetch-start" true 1 1000;
-                  fetch_decode_q = Resource.create "fetch-decode" true 4 1000;
+                  fetch_start = Resource.create "fetch-start" true !pipe_width 1000;
+                  fetch_decode_q = Resource.create "fetch-decode" true fd_queue_size 1000;
                   rob = Resource.create "reorder buffer" true 128 10000;
-                  alu = Resource.create "arithmetic" false 1 1000;
+                  alu = Resource.create "arithmetic" (not !ooo) num_alus 1000;
                   agen = Resource.create "agen" true 1 1000;
-                  dcache = Resource.create "dcache" false 1 1000;
-                  retire = Resource.create "retire" true 1 1000;
+                  dcache = Resource.create "dcache" (not !ooo) 1 1000;
+                  retire = Resource.create "retire" true 4 1000;
                   reg_ready = Array.make 16 0;
+                  dec_lat = !dec_latency;
                 } in
               Machine.run p_control !machine;
               let tries,hits = Predictors.predictor_get_results p_control.bp in
@@ -162,6 +168,9 @@ let cmd_spec = [
     ("-l2_lat", Arg.Set_int l2_latency, "<latency> latency of L2 cache read");
     ("-l2_idx_sz", Arg.Set_int l2_idx_bits, "<size> number of bits used for indexing L2 cache");
     ("-l2_blk_sz", Arg.Set_int l2_blk_bits, "<size> number of bits used to address byte in block of L2 cache");
+    ("-dec_lat", Arg.Set_int dec_latency, "<latency> latency of decode stages");
+    ("-pipe_width", Arg.Set_int pipe_width, "<width> max number of insn fetched/clk");
+    ("-ooo", Arg.Set ooo, "enable out-of-order scheduling");
   ]
 
 let id s = 

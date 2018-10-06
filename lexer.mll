@@ -72,6 +72,7 @@ rule read = parse
 | "addl"     { ALU2(ADD)   }
 | "subl"     { ALU2(SUB)   }
 | "andl"     { ALU2(AND)   }
+| "sarq"     { SAR1   }
 | "orl"      { ALU2(OR)    }
 | "xorl"     { ALU2(XOR)   }
 | "testq"     { ALU2(TEST)   }

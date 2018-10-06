@@ -15,6 +15,7 @@ type perf = {
     dcache : Resource.resource;
     retire : Resource.resource;
     reg_ready : int array;
+    dec_lat : int
   }
 
 type state = {
@@ -320,7 +321,7 @@ let model_fetch_decode perf state =
   let start = Resource.acquire perf.fetch_start 0 in
   let start = Resource.acquire perf.fetch_decode_q start in
   let got_inst = Cache.cache_read perf.i state.ip start in
-  let rob_entry = Resource.acquire perf.rob (got_inst + 1) in
+  let rob_entry = Resource.acquire perf.rob (got_inst + perf.dec_lat) in
   Resource.use perf.fetch_start start (start + 1);
   Resource.use perf.fetch_decode_q start rob_entry;
   rob_entry
@@ -403,6 +404,41 @@ let model_mul_imm perf state rd = model_compute perf state rd (perf.reg_ready.(r
 let model_alu_reg perf state rd rs = model_compute perf state rd (max perf.reg_ready.(rd) perf.reg_ready.(rs)) 1
 let model_mul_reg perf state rd rs = model_compute perf state rd (max perf.reg_ready.(rd) perf.reg_ready.(rs)) 3
 
+let model_store perf state rd rs addr =
+  let ops_ready = perf.reg_ready.(rs) in
+  let rob_entry = model_fetch_decode perf state in
+  let ready = max rob_entry ops_ready in
+  let agen_start = Resource.acquire perf.agen ready in
+  let agen_done = agen_start + 1 in
+  let store_data_ready = max agen_done perf.reg_ready.(rd) in
+  let access_start = Resource.acquire perf.dcache store_data_ready in
+  let _ = Cache.cache_write perf.d addr access_start in
+  let access_done = access_start + 1 in
+  let time_retire = Resource.acquire perf.retire (access_done + 1) in
+  Resource.use perf.agen agen_start agen_done;
+  Resource.use perf.dcache access_start (access_start + 1);
+  Resource.use perf.retire time_retire (time_retire + 1);
+  Resource.use perf.rob rob_entry time_retire
+
+let model_load perf state rd rs addr =
+  let ops_ready = perf.reg_ready.(rs) in
+  let rob_entry = model_fetch_decode perf state in
+  let ready = max rob_entry ops_ready in
+  let agen_start = Resource.acquire perf.agen ready in
+  let agen_done = agen_start + 1 in
+  let access_start = Resource.acquire perf.dcache agen_done in
+  let data_ready = Cache.cache_read perf.d addr access_start in
+  let access_done = access_start + 1 in
+  let time_retire = Resource.acquire perf.retire (access_done + 1) in
+  Resource.use perf.agen agen_start agen_done;
+  Resource.use perf.dcache access_start (access_start + 1);
+  Resource.use perf.retire time_retire (time_retire + 1);
+  Resource.use perf.rob rob_entry time_retire;
+  perf.reg_ready.(rd) <- data_ready
+
+
+
+let model_load_imm perf state rd rs = model_load perf state rd perf.reg_ready.(rs)
 
 let run_inst perf state =
   log_ip state;
@@ -433,11 +469,11 @@ let run_inst perf state =
   | 1,5 -> model_mul_reg perf state rd rs; wr_reg state rd (Int64.mul state.regs.(rd) state.regs.(rs))
   | 2,1 -> model_mov_reg perf state rs rd; wr_reg state rd state.regs.(rs)
   | 3,1 -> begin
-      let _ = Cache.cache_read perf.d state.regs.(rs) 0 in
+      model_load perf state rd rs state.regs.(rs);
       wr_reg state rd (Memory.read_quad state.mem state.regs.(rs))
     end
   | 3,9 -> begin
-      let _ = Cache.cache_write perf.d state.regs.(rs) 0 in
+      model_store perf state rd rs state.regs.(rs);
       wr_mem state state.regs.(rs) state.regs.(rd)
     end
   | 4,_ | 5,_ | 6,_ | 7,_ -> begin (* instructions with 2 bytes + 1 immediate *)
@@ -468,12 +504,12 @@ let run_inst perf state =
       | 6,4 -> model_mov_imm perf state rd; wr_reg state rd qimm
       | 7,5 -> begin
           let a = Int64.add qimm state.regs.(rs) in
-          let _ = Cache.cache_read perf.d a 0 in
+          model_load perf state rd rs a;
           wr_reg state rd (Memory.read_quad state.mem a)
         end
       | 7,0xD -> begin
           let a = Int64.add qimm state.regs.(rs) in
-          let _ = Cache.cache_write perf.d a 0 in
+          model_store perf state rd rs a;
           wr_mem state a state.regs.(rd)
         end
       | _ -> raise (UnknownInstructionAt (Int64.to_int state.ip))

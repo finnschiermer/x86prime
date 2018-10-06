@@ -1,14 +1,14 @@
 x86prime instruction encoding
 -----------------------------
 
-00000000 00001111                           ret %r15
+00000000 0000ssss                           ret s
 0001aaaa ddddssss                           register/register arithmic: op s,d (see below)
 00100001 ddddssss                           movq s,d
 00110001 ddddssss                           movq (s),d
 00111001 ddddssss                           movq d,(s)
 -
 0100cccc ddddssss pp...32...pp              cb<c> s,d,p (see below)
-01001110 11110000 pp...32...pp              call p,%r15
+01001110 dddd0000 pp...32...pp              call p,d
 01001111 00000000 pp...32...pp              jmp p
 0101aaaa dddd0000 ii...32...ii              imm/register arithmetic: op i,d (see below)
 01100100 dddd0000 ii...32...ii              movq $i,d

@@ -1,6 +1,6 @@
   type condition =  E | NE | G | GE | L | LE | A | AE | B | BE
 
-  type opcode = ADD | SUB | AND | OR | XOR | CMP | LEA | TEST | MOV | RET | JMP | SAR
+  type opcode = ADD | SUB | AND | OR | XOR | CMP | LEA | TEST | MOV | RET | JMP | SAR | SAL
                 | Jcc of condition | CBcc of condition | CALL | PUSH | POP | MUL
 
 (*

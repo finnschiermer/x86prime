@@ -21,6 +21,7 @@ let print_opc opc =
   | OR -> "orq"
   | XOR -> "xorq"
   | SAR -> "sarq"
+  | SAL -> "salq"
   | CMP -> "cmpq"
   | LEA -> "leaq"
   | TEST -> "testq"

@@ -62,7 +62,7 @@ exception UnknownEntryPoint of string
 exception InvalidArgument of string
 
 (* performance controls *)
-let p_type = ref "t"
+let p_type = ref "gshare"
 let p_idx_size = ref 12
 let p_ret_size = ref 8
 
@@ -82,9 +82,12 @@ let l2_blk_bits = ref 5
 let l2_latency = ref 16
 
 let mem_latency = ref 100
+
+
 let dec_latency = ref 1
 let pipe_width = ref 1
 let ooo = ref false
+
 
 let run entry =
   match !labels with
@@ -123,23 +126,23 @@ let run entry =
                   dec_lat = !dec_latency;
                 } in
               Machine.run p_control !machine;
-              let tries,hits = Predictors.predictor_get_results p_control.bp in
-              let mr = (float_of_int (tries-hits)) /. (float_of_int (tries)) in
-              Printf.printf "Branch predictions %d   hits %d    missrate: %f\n" tries hits mr;
-              let tries,hits = Predictors.predictor_get_results p_control.rp in
-              let mr = (float_of_int (tries-hits)) /. (float_of_int (tries)) in
-              Printf.printf "Return predictions %d   hits %d    missrate: %f\n" tries hits mr;
-              let r,w,h = Cache.cache_get_stats p_control.l2 in
-              let mr = (float_of_int (r+w-h)) /. (float_of_int (r+w)) in
-              Printf.printf "L2-Cache reads: %d   writes: %d   hits: %d   missrate: %f\n" r w h mr;
-              let r,w,h = Cache.cache_get_stats p_control.i in
-              let mr = (float_of_int (r+w-h)) /. (float_of_int (r+w)) in
-              Printf.printf "I-Cache reads: %d   writes: %d   hits: %d   missrate: %f\n" r w h mr;
-              let r,w,h = Cache.cache_get_stats p_control.d in
-              let mr = (float_of_int (r+w-h)) /. (float_of_int (r+w)) in
-              Printf.printf "D-Cache reads: %d   writes: %d   hits: %d   missrate: %f\n" r w h mr;
+              let tries,miss = Predictors.predictor_get_results p_control.bp in
+              let mr = (float_of_int miss) /. (float_of_int (tries)) in
+              Printf.printf "\nBranch predictions: %8d   miss %8d    missrate: %f\n" tries miss mr;
+              let tries,miss = Predictors.predictor_get_results p_control.rp in
+              let mr = (float_of_int miss) /. (float_of_int (tries)) in
+              Printf.printf "Return predictions: %8d   miss %8d    missrate: %f\n" tries miss mr;
+              let r,w,m = Cache.cache_get_stats p_control.l2 in
+              let mr = (float_of_int m) /. (float_of_int (r+w)) in
+              Printf.printf "L2-Cache reads: %8d   writes: %8d   miss: %8d   missrate: %f\n" r w m mr;
+              let r,w,m = Cache.cache_get_stats p_control.i in
+              let mr = (float_of_int m) /. (float_of_int (r+w)) in
+              Printf.printf "I-Cache reads:  %8d   writes: %8d   miss: %8d   missrate: %f\n" r w m mr;
+              let r,w,m = Cache.cache_get_stats p_control.d in
+              let mr = (float_of_int m) /. (float_of_int (r+w)) in
+              Printf.printf "D-Cache reads:  %8d   writes: %8d   miss: %8d   missrate: %f\n" r w m mr;
               let finished = Resource.get_earliest p_control.retire in
-              Printf.printf "Execution finished at %d\n" finished
+              Printf.printf "Execution finished at cycle %d\n" finished
             )
         end
     end

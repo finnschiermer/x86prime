@@ -264,6 +264,7 @@ let disas_inst state =
   | 1,4 -> Ast.Alu2(XOR,Reg(disas_reg rs), Reg(disas_reg rd));
   | 1,5 -> Ast.Alu2(MUL,Reg(disas_reg rs), Reg(disas_reg rd));
   | 1,6 -> Ast.Alu2(SAR,Reg(disas_reg rs), Reg(disas_reg rd));
+  | 1,7 -> Ast.Alu2(SAL,Reg(disas_reg rs), Reg(disas_reg rd));
   | 2,1 -> Ast.Move2(MOV,Reg(disas_reg rs), Reg(disas_reg rd));
   | 3,1 -> Ast.Move2(MOV,EaS(disas_reg rs), Reg(disas_reg rd));
   | 3,9 -> Ast.Move2(MOV,Reg(disas_reg rd), EaS(disas_reg rs));
@@ -280,6 +281,7 @@ let disas_inst state =
       | 5,4 -> Ast.Alu2(XOR,Imm(disas_imm imm),Reg(disas_reg rd))
       | 5,5 -> Ast.Alu2(MUL,Imm(disas_imm imm),Reg(disas_reg rd))
       | 5,6 -> Ast.Alu2(SAR,Imm(disas_imm imm),Reg(disas_reg rd))
+      | 5,7 -> Ast.Alu2(SAL,Imm(disas_imm imm),Reg(disas_reg rd))
       | 6,4 -> Ast.Move2(MOV,Imm(disas_imm imm),Reg(disas_reg rd))
       | 7,5 -> Ast.Move2(MOV,EaDS(disas_imm imm,disas_reg rs),Reg(disas_reg rd))
       | 7,0xD ->Ast.Move2(MOV,Reg(disas_reg rd), EaDS(disas_imm imm,disas_reg rs))

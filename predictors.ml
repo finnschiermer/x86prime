@@ -20,36 +20,36 @@ type predictor_kind =
 
 type predictor = {
     mutable num_predictions : int;
-    mutable num_hits : int;
+    mutable num_miss : int;
     mutable kind : predictor_kind;
   }
 
 let create_return_predictor stacksize : predictor =
   let r = { stack_p = 0; stack = Array.make stacksize 0} in
-  let p = { num_predictions = 0; num_hits = 0; kind = PredReturn(r) } in
+  let p = { num_predictions = 0; num_miss = 0; kind = PredReturn(r) } in
   p
 
 let create_taken_predictor () : predictor =
-  { num_predictions = 0; num_hits = 0; kind = PredTaken }
+  { num_predictions = 0; num_miss = 0; kind = PredTaken }
 
 let create_not_taken_predictor () : predictor =
-  { num_predictions = 0; num_hits = 0; kind = PredNotTaken }
+  { num_predictions = 0; num_miss = 0; kind = PredNotTaken }
 
 let create_btfnt_predictor () : predictor =
-  { num_predictions = 0; num_hits = 0; kind = PredBTFNT }
+  { num_predictions = 0; num_miss = 0; kind = PredBTFNT }
 
 let create_oracle_predictor () : predictor =
-  { num_predictions = 0; num_hits = 0; kind = PredOracle }
+  { num_predictions = 0; num_miss = 0; kind = PredOracle }
 
 let create_local_predictor num_index_bits : predictor =
   let num_state_machines = 1 lsl num_index_bits in
   let r = {history = 0; predictors = Array.make num_state_machines WT; } in
-  { num_predictions = 0; num_hits = 0; kind = PredLocal(r) }
+  { num_predictions = 0; num_miss = 0; kind = PredLocal(r) }
 
 let create_gshare_predictor num_index_bits : predictor =
   let num_state_machines = 1 lsl num_index_bits in
   let r = {history = 0; predictors = Array.make num_state_machines WT; } in
-  { num_predictions = 0; num_hits = 0; kind = PredGShare(r) }
+  { num_predictions = 0; num_miss = 0; kind = PredGShare(r) }
 
 let note_call predictor target =
   match predictor.kind with
@@ -71,7 +71,7 @@ let predict_return predictor target : bool =
       let prediction = pred_state.stack.(sp) in
       let sp = if sp = 0 then max - 1 else sp - 1 in
       let hit = target = prediction in
-      if hit then predictor.num_hits <- 1 + predictor.num_hits;
+      if not hit then predictor.num_miss <- 1 + predictor.num_miss;
       pred_state.stack_p <- sp;
       hit
     end
@@ -123,7 +123,7 @@ let predict_and_train predictor pc target taken : bool =
     end
   | _ -> raise PredictorMismatch
   in
-  if hit then predictor.num_hits <- 1 + predictor.num_hits;
+  if not hit then predictor.num_miss <- 1 + predictor.num_miss;
   hit
 
-let predictor_get_results predictor = predictor.num_predictions, predictor.num_hits
+let predictor_get_results predictor = predictor.num_predictions, predictor.num_miss

@@ -13,7 +13,7 @@ type cache = {
     next_layer : memory_layer;
     mutable num_reads : int;
     mutable num_writes : int;
-    mutable num_hits : int;
+    mutable num_miss : int;
   }
 
 and memory_layer =
@@ -38,10 +38,10 @@ let cache_create index_bits block_bits assoc latency next_layer =
     next_layer = next_layer;
     num_reads = 0;
     num_writes = 0;
-    num_hits = 0;
+    num_miss = 0;
   }
 
-let cache_get_stats cache = (cache.num_reads, cache.num_writes, cache.num_hits)
+let cache_get_stats cache = (cache.num_reads, cache.num_writes, cache.num_miss)
 
 let rec cache_access cache address time is_write =
   let quad_address = Int64.to_int (Int64.shift_right_logical address 3) in
@@ -69,7 +69,6 @@ let rec cache_access cache address time is_write =
   done;
   match !found with 
   | Some(idx,entry) -> begin (* Hit, MRU update *)
-      cache.num_hits <- 1 + cache.num_hits;
       for i = idx - 1 downto 0 do
         cache.ways.(index).(i + 1) <- cache.ways.(index).(i)
       done;
@@ -78,6 +77,7 @@ let rec cache_access cache address time is_write =
       cache.latency + (max time entry.block.(quad_offset_in_block))
     end
   | None -> begin (* Miss, Discard LRU entry, add new one first in MRU order *)
+      cache.num_miss <- 1 + cache.num_miss;
       for i = assoc_end - 2 downto 0 do
         cache.ways.(index).(i + 1) <- cache.ways.(index).(i)
       done;

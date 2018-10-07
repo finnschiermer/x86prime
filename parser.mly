@@ -33,6 +33,9 @@
 %start <Ast.line> aline
 %%
 aline:
+ | i = instruction EOF { i }
+
+instruction:
  | k = ID COLON                      { Ast.Label(k) }
  | SAR1 v1 = arg                 { Ast.Alu2(Ast.SAR, Imm("1"), v1) }
  | SAR1 v1 = arg COMMA v2 = arg      { Ast.Alu2(Ast.SAR, v1, v2) }

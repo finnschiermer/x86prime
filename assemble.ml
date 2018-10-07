@@ -29,6 +29,14 @@ let asm_reg rd =
   else if rd = "%esi" then "5"
   else if rd = "%edi" then "6"
   else if rd = "%esp" then "7"
+  else if rd = "%r8d" then "8"
+  else if rd = "%r9d" then "9"
+  else if rd = "%r10d" then "A"
+  else if rd = "%r11d" then "B"
+  else if rd = "%r12d" then "C"
+  else if rd = "%r13d" then "D"
+  else if rd = "%r14d" then "E"
+  else if rd = "%r15d" then "F"
   else raise (Error_during_assembly ("Unknown register " ^ rd))
 
 let reverse_string s =
@@ -107,6 +115,7 @@ let assemble_line env line : assem =
       | Alu2(OR,Reg(rs),Reg(rd)) ->                gen ["1"; "3"; asm_reg rd; asm_reg rs]
       | Alu2(XOR,Reg(rs),Reg(rd)) ->               gen ["1"; "4"; asm_reg rd; asm_reg rs]
       | Alu2(MUL,Reg(rs),Reg(rd)) ->               gen ["1"; "5"; asm_reg rd; asm_reg rs]
+      | Alu2(SAR,Reg(rs),Reg(rd)) ->               gen ["1"; "6"; asm_reg rd; asm_reg rs]
       | Move2(MOV,Reg(rs),Reg(rd)) ->              gen ["2"; "1"; asm_reg rd; asm_reg rs]
       | Move2(MOV,EaS(rs),Reg(rd)) ->              gen ["3"; "1"; asm_reg rd; asm_reg rs]
       | Move2(MOV,Reg(rd),EaS(rs)) ->              gen ["3"; "9"; asm_reg rd; asm_reg rs]
@@ -123,6 +132,7 @@ let assemble_line env line : assem =
       | Alu2(OR,Imm(i),Reg(rd)) ->                 gen ["5"; "3"; asm_reg rd; "0"; asm_imm env i]
       | Alu2(XOR,Imm(i),Reg(rd)) ->                gen ["5"; "4"; asm_reg rd; "0"; asm_imm env i]
       | Alu2(MUL,Imm(i),Reg(rd)) ->                gen ["5"; "5"; asm_reg rd; "0"; asm_imm env i]
+      | Alu2(SAR,Imm(i),Reg(rd)) ->                gen ["5"; "6"; asm_reg rd; "0"; asm_imm env i]
       | Move2(MOV,Imm(i),Reg(rd)) ->               gen ["6"; "4"; asm_reg rd; "0"; asm_imm env i]
       | Move2(MOV,EaDS(i,rs),Reg(rd)) ->           gen ["7"; "5"; asm_reg rd; asm_reg rs; asm_imm env i]
       | Move2(MOV,Reg(rd),EaDS(i,rs)) ->           gen ["7"; "D"; asm_reg rd; asm_reg rs; asm_imm env i]

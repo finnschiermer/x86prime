@@ -38,6 +38,7 @@ let do_txl = ref false
 let do_asm = ref false
 let do_list = ref false
 let do_show = ref false
+let do_print_config = ref false
 
 let read fname =
   parse_lines (to_lines fname)
@@ -79,7 +80,7 @@ let i_latency = ref 3
 let l2_assoc = ref 4
 let l2_idx_bits = ref 10
 let l2_blk_bits = ref 5
-let l2_latency = ref 16
+let l2_latency = ref 12
 
 let mem_latency = ref 100
 
@@ -88,6 +89,34 @@ let dec_latency = ref 1
 let pipe_width = ref 1
 let ooo = ref false
 
+let print_cache_config assoc idx_bits blk_bits latency =
+  let size = assoc lsl (idx_bits + blk_bits) in
+  Printf.printf "    Size %d bytes\n" size;
+  Printf.printf "    Associativity %d\n" assoc;
+  Printf.printf "    Block-size %d bytes\n" (1 lsl blk_bits);
+  Printf.printf "    Hit latency %d\n" latency
+
+let print_config () =
+  Printf.printf "Performance model configuration\n";
+  if !ooo then Printf.printf "  Out-of-order execution\n" else Printf.printf "  In-order execution\n";
+  Printf.printf "  Pipeline width %d insn/clk\n" !pipe_width;
+  Printf.printf "  Branch predictor %s\n" (match !p_type with
+    | "t" -> "always taken"
+    | "nt" -> "always not taken"
+    | "btfnt" -> "backward taken, forward not taken"
+    | "oracle" -> "oracle (it knows!)"
+    | "local" -> "local history (PC indexed)"
+    | "gshare" -> "gshare (PC xor History indexed)"
+    | _ -> "");
+  Printf.printf "  Return predictor with %d entries\n" !p_ret_size;
+  Printf.printf "  Decode/schedule latency %d stages\n" !dec_latency;
+  Printf.printf "  Data-cache configuration\n";
+  print_cache_config !d_assoc !d_idx_bits !d_blk_bits !d_latency;
+  Printf.printf "  Instruction-cache configuration\n";
+  print_cache_config !i_assoc !i_idx_bits !i_blk_bits !i_latency;
+  Printf.printf "  L2 cache configuration\n";
+  print_cache_config !l2_assoc !l2_idx_bits !l2_blk_bits !l2_latency;
+  Printf.printf "  Main memory %d cycles away\n" !mem_latency
 
 let run entry =
   match !labels with
@@ -98,6 +127,7 @@ let run entry =
       | Some(addr) -> begin
           Scanf.sscanf addr "%x" (fun x ->
               Machine.set_ip !machine x;
+              if !do_print_config then print_config ();
               let l2 = Cache.cache_create !l2_idx_bits !l2_blk_bits !l2_assoc !l2_latency (MainMemory !mem_latency) in
               let num_alus = if !pipe_width > 2 then !pipe_width - 1 else !pipe_width in
               let fd_queue_size = (1 + !i_latency + !dec_latency) * !pipe_width in
@@ -147,6 +177,42 @@ let run entry =
         end
     end
 
+let set_pipe = ref ""
+let set_mem = ref ""
+
+exception UnimplementedOption of string
+
+let process_a3_options _ = 
+  begin
+    match !set_pipe with
+    | "" | "simple" -> ()
+    | "super" -> begin
+        dec_latency := 3;
+        pipe_width := 3;
+      end
+    | "ooo" -> begin
+        ooo := true;
+        dec_latency := 5;
+        pipe_width := 3;
+      end
+    | _ -> raise (UnimplementedOption !set_pipe)
+  end;
+  begin
+    match !set_mem with
+    | "" | "real" -> ()
+    | "magic" -> begin
+        mem_latency := 0;
+        l2_latency := 0;
+      end
+    | "epic" -> begin
+        d_latency := 1;
+        i_latency := 1;
+        l2_latency := 0;
+        mem_latency := 0;
+      end
+    | _ -> raise (UnimplementedOption !set_mem)
+  end
+
 let cmd_spec = [
     ("-f", Arg.Set_string program_name, "<name of file> translates and assembles file");
     ("-txl", Arg.Set do_txl, "transform gcc output to x86prime");
@@ -174,6 +240,9 @@ let cmd_spec = [
     ("-dec_lat", Arg.Set_int dec_latency, "<latency> latency of decode stages");
     ("-pipe_width", Arg.Set_int pipe_width, "<width> max number of insn fetched/clk");
     ("-ooo", Arg.Set ooo, "enable out-of-order scheduling");
+    ("-pipe", Arg.Set_string set_pipe, "simple/super/ooo select A3 pipeline configuration");
+    ("-mem", Arg.Set_string set_mem, "magic/real select A3 memory configuration");
+    ("-print_config", Arg.Set do_print_config, "print detailed performance model configuration")
   ]
 
 let id s = 
@@ -190,6 +259,9 @@ let () =
       if !do_asm then assemble source else if !do_list then print_lines source;
       if !tracefile_name <> "" then Machine.set_tracefile !machine (open_out !tracefile_name);
       if !do_show then Machine.set_show !machine;
-      if !entry_name <> "" then run !entry_name;
+      if !entry_name <> "" then begin
+          process_a3_options ();
+          run !entry_name;
+        end
     end
   else Printf.printf "Error: you must give a program file name using -f\n"

@@ -50,7 +50,8 @@ and rewrite_block block curr_sp terminator =
        Ok(Move2(MOV,EaDS((Printf.sprintf "%d" (curr_sp)), "%rsp"),reg)) :: rewrite_block rest (curr_sp + 8) terminator
   | (Ok(Alu2(_)) as insn) :: rest | (Ok(Move2(_)) as insn) :: rest | (Ok(Ignored(_)) as insn) :: rest -> 
      insn :: rewrite_block rest curr_sp terminator
-  | (Ok(Ctl0(_)) as insn) :: rest | (Ok(Ctl1(_)) as insn) :: rest | (Ok(Ctl3(_)) as insn) :: rest -> begin
+  | (Ok(Ctl0(_)) as insn) :: rest | (Ok(Ctl1(_)) as insn) :: rest | (Ok(Ctl3(_)) as insn) :: rest 
+    | (Ok(Label(_)) as insn) :: rest -> begin
       match terminator with
       | None -> insn :: process_all_blocks rest
       | Some(term) -> term :: insn :: process_all_blocks rest

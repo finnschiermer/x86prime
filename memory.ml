@@ -17,7 +17,7 @@ type page = Int64.t array
 let get_page mem page_addr =
   match Hashtbl.find_opt mem page_addr with
   | Some(page) -> page
-  | None -> if (Hashtbl.length mem > 100) then
+  | None -> if (Hashtbl.length mem > 10000) then
               raise OutOfSimulatedMemory
             else
               let page = (Array.make 256 Int64.zero) in

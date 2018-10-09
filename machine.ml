@@ -313,7 +313,7 @@ let disas_inst state =
 let terminate_output state = if state.show then align_output state
 
 let perform_output port value = 
-  if port = 0 then Printf.printf "%Lx " value
+  if port = 0 then Printf.printf "%016Lx " value
   else raise (UnknownPort port)
 
 let perform_input port =

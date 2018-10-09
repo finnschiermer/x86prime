@@ -5,6 +5,7 @@
 %token RPAR
 %token SAR
 %token SAL
+%token SHR
 %token <Ast.opcode> ALU2
 %token <Ast.opcode> MOVE
 %token <Ast.opcode> PUPO
@@ -20,6 +21,7 @@
 %token ALIGN
 %token TYPE
 %token FUNCTION
+%token ENDFUNCTION
 %token OBJECT
 %token FUN_START
 %token DOLLAR
@@ -40,6 +42,8 @@ instruction:
  | k = ID COLON                      { Ast.Label(k) }
  | SAR v1 = arg                      { Ast.Alu2(Ast.SAR, Imm("1"), v1) }
  | SAR v1 = arg COMMA v2 = arg       { Ast.Alu2(Ast.SAR, v1, v2) }
+ | SHR v1 = arg                      { Ast.Alu2(Ast.SHR, Imm("1"), v1) }
+ | SHR v1 = arg COMMA v2 = arg       { Ast.Alu2(Ast.SHR, v1, v2) }
  | SAL v1 = arg                      { Ast.Alu2(Ast.SAL, Imm("1"), v1) }
  | SAL v1 = arg COMMA v2 = arg       { Ast.Alu2(Ast.SAL, v1, v2) }
  | i = ALU2 v1 = arg COMMA v2 = arg  { Ast.Alu2(i, v1, v2) }
@@ -60,6 +64,7 @@ instruction:
  | s = IGN                           { Ast.Ignored(s) }
  | TYPE s = ID COMMA FUNCTION        { Ast.Function(s) }
  | TYPE s = ID COMMA OBJECT          { Ast.Object(s) }
+ | ENDFUNCTION                       { Ast.Fun_end }
  | FUN_START                         { Ast.Fun_start }
  | LINE                              { Ast.Ignored("") }
  | EOF                               { Ast.Ignored("") }

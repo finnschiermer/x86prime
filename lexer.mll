@@ -31,17 +31,16 @@ let alpha = ['a'-'z' 'A'-'Z' '_' '.']
 let id    = alpha (alpha|digit)*
 let num   = '-'? digit+
 let start_proc = ".cfi_startproc"
-let directive = ".text" | ".globl" | ".cfi_endproc" | ".size" | ".section" | ".file" | ".ident"
+let directive = ".text" | ".globl" | ".size" | ".section" | ".file" | ".ident"
     |  ".p2align" |  ".data" 
 let ignored = ".cfi_def_cfa_offset" | ".cfi_offset" | ".cfi_remember_state" | ".cfi_restore" 
     | ".cfi_def_cfa" | ".cfi_def_cfa_register" | ".subsections_via_symbols"
 
 let regs32 = "%eax" | "%ebx" | "%ecx" | "%edx" | "%ebp" | "%esi" | "%edi" | "%esp"
-    | "%r8d" | "%r9d" | "%r10d" | "%r11d" | "%r12d" | "%r13d"
-let regs64 = "%rax" | "%rbx" | "%rcx" | "%rdx" | "%rbp" | "%rsi" | "%rdi" | "%rsp"
-    | "%r8" | "%r9" | "%r10" | "%r11" | "%r12" | "%r13" 
+    | "%r8d" | "%r9d" | "%r10d" | "%r11d" | "%r12d" | "%r13d" | "%r14d" | "%r15d"
 
-    (* | "%r14" | "%r15"  <--- we use them, so fail if used by gcc *) 
+let regs64 = "%rax" | "%rbx" | "%rcx" | "%rdx" | "%rbp" | "%rsi" | "%rdi" | "%rsp"
+    | "%r8" | "%r9" | "%r10" | "%r11" | "%r12" | "%r13" | "%r14" | "%r15"
 
     | "%rip"      (* <--- translated at parser level to different addressing mode *)
 
@@ -50,6 +49,7 @@ rule read = parse
 | ".text"   { DIR(".text") }
 | ".type"   { TYPE }
 | "@function" { FUNCTION }
+| ".cfi_endproc" { ENDFUNCTION }
 | "@object" { OBJECT }
 | directive [^'\n']*  { DIR(get lexbuf) }
 | ignored [^'\n']* { IGN(get lexbuf) }
@@ -62,8 +62,6 @@ rule read = parse
 | ':'       { COLON         }
 | regs64    { REG(get lexbuf) }
 | regs32    { REG(get lexbuf) }
-| "%r14"    { if !translating then raise (Error "%r14 is reserved for x86prime") else REG("%r14") }
-| "%r15"    { if !translating then raise (Error "%r15 is reserved for x86prime") else REG("%r15") }
 | "leaq"    { ALU2(LEA)   }
 | "addq"     { ALU2(ADD)   }
 | "subq"     { ALU2(SUB)   }
@@ -75,6 +73,7 @@ rule read = parse
 | "andl"     { ALU2(AND)   }
 | "sarq"     { SAR }
 | "salq"     { SAL }
+| "shrq"     { SHR }
 | "orl"      { ALU2(OR)    }
 | "xorl"     { ALU2(XOR)   }
 | "testq"     { ALU2(TEST)   }

@@ -63,11 +63,11 @@ let rec rewrite_calls lines =
   let open Ast in
   match lines with
   | Ok(Ctl1(CALL,target)) :: others -> 
-     Ok(Ctl2(CALL,target,Reg("%r15"))) :: rewrite_calls others
+     Ok(Ctl2(CALL,target,Reg("%r11"))) :: rewrite_calls others
   | Ok(Ctl0(RET)) :: others ->
-     Ok(PuPo(POP,Reg("%r15"))) :: Ok(Ctl1(RET,Reg("%r15"))) :: rewrite_calls others
+     Ok(PuPo(POP,Reg("%r11"))) :: Ok(Ctl1(RET,Reg("%r11"))) :: rewrite_calls others
   | Ok(Fun_start) as insn :: others ->
-     insn :: Ok(PuPo(PUSH,Reg("%r15"))) :: rewrite_calls others
+     insn :: Ok(PuPo(PUSH,Reg("%r11"))) :: rewrite_calls others
   | i :: others -> i :: rewrite_calls others
   | [] -> []
 

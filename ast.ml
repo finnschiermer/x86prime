@@ -1,6 +1,6 @@
   type condition =  E | NE | G | GE | L | LE | A | AE | B | BE
 
-  type opcode = ADD | SUB | AND | OR | XOR | CMP | LEA | TEST | MOV | RET | JMP | SAR | SAL
+  type opcode = ADD | SUB | AND | OR | XOR | CMP | LEA | TEST | MOV | RET | JMP | SAR | SAL | SHR 
                 | Jcc of condition | CBcc of condition | CALL | PUSH | POP | MUL
 
 (*
@@ -13,7 +13,6 @@
   type op_spec =
   | Reg of string
   | Imm of string
-(*  | Mem of string *)
   | EaS of string
   | EaZ of string * string
   | EaZS of string * string * string
@@ -21,13 +20,6 @@
   | EaDS of string * string
   | EaDZ of string * string * string
   | EaDZS of string * string * string * string
-(*  | Ea1 of string
-  | Ea1b of string * string
-  | Ea2 of string * string
-  | Ea2b of string * string * string
-  | Ea3 of string * string * string
-  | Ea3b of string * string * string * string
- *)
 
   type line =
   | Label of string
@@ -48,6 +40,7 @@
   | Function of string
   | Object of string
   | Fun_start
+  | Fun_end
   | Other of string
 
 let rev_cond cond =

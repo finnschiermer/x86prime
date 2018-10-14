@@ -43,14 +43,8 @@ let do_print_config = ref false
 let read fname =
   parse_lines (to_lines fname)
 
-let translate lines =
-  let lines = Stack.elim_stack lines in
-  Branches.elim_flags (Load_store.convert lines)
-
 let assemble lines =
-  let lines = Assemble.prepare lines in
-  let env = Assemble.first_pass lines in
-  let prog = Assemble.second_pass env lines in
+  let prog,env = Assemble.assemble lines in
   let hex = Assemble.get_as_hex prog in begin
       program := Some prog;
       labels := Some env;
@@ -127,7 +121,6 @@ let run entry =
       | Some(addr) -> begin
           Scanf.sscanf addr "%x" (fun x ->
               Machine.set_ip !machine x;
-              if !do_print_config then print_config ();
               let l2 = Cache.cache_create !l2_idx_bits !l2_blk_bits !l2_assoc !l2_latency (MainMemory !mem_latency) in
               let num_alus = if !pipe_width > 2 then !pipe_width - 1 else !pipe_width in
               let fd_queue_size = (1 + !i_latency + !dec_latency) * !pipe_width in
@@ -251,10 +244,12 @@ let id s =
 
 let () = 
   Arg.parse cmd_spec id "Transform gcc output to x86', assemble and simulate\n\n";
+  process_a3_options ();
+  if !do_print_config then print_config ();
   if !program_name <> "" then begin
       Lexer.translating := !do_txl;
       let source = read !program_name in
-      let source = if !do_txl then translate source else source in
+      let source = if !do_txl then Translate.translate source else source in
       let source = Assemble.prepare source in
       if !do_asm then assemble source else if !do_list then print_lines source;
       if !tracefile_name <> "" then Machine.set_tracefile !machine (open_out !tracefile_name);
@@ -264,4 +259,4 @@ let () =
           run !entry_name;
         end
     end
-  else Printf.printf "Error: you must give a program file name using -f\n"
+  else Printf.printf "No program, doing nothing :-)\n"

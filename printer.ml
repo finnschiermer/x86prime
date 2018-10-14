@@ -22,6 +22,7 @@ let print_opc opc =
   | XOR -> "xorq"
   | SAR -> "sarq"
   | SAL -> "salq"
+  | SHR -> "shrq"
   | CMP -> "cmpq"
   | LEA -> "leaq"
   | TEST -> "testq"
@@ -70,6 +71,7 @@ let print_insn insn =
   | Function(s) -> Printf.sprintf "    .type %s, @function" s
   | Object(s) -> Printf.sprintf "    .type %s, @object" s
   | Fun_start -> Printf.sprintf "    .cfi_startproc"
+  | Fun_end -> Printf.sprintf "    .cfi_endproc"
   | Other(s) -> Printf.sprintf "Other %s" s
 
 let line_printer line =

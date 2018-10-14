@@ -38,9 +38,13 @@ let rec fill_env_loop env lines (flag_setter : generator_info) =
       let resolution = unify_inbound_flow env lab flag_setter in
       fill_env_loop ((lab,resolution) :: env) others resolution
     end
-  | Ok(Ctl1(Jcc(_),EaD(lab))) :: others | Ok(Ctl1(JMP,EaD(lab))) :: others -> begin
+  | Ok(Ctl1(Jcc(_),EaD(lab))) :: others -> begin
       let resolution = unify_inbound_flow env lab flag_setter in
       fill_env_loop ((lab,resolution) :: env) others flag_setter
+    end
+    | Ok(Ctl1(JMP,EaD(lab))) :: others -> begin
+      let resolution = unify_inbound_flow env lab flag_setter in
+      fill_env_loop ((lab,resolution) :: env) others Unknown
     end
   | Ok(Alu2(LEA,_,_)) :: others -> fill_env_loop env others flag_setter
   | Ok(Alu2(_) as insn) :: others -> fill_env_loop env others (Chosen(insn))
@@ -62,6 +66,9 @@ let rec elim_loop env lines flag_setter =
         end
       | Alu2(_)                        -> line :: (elim_loop env other_lines (Chosen insn))
       | Ctl0(RET) | Ctl1(CALL,_)       -> line :: (elim_loop env other_lines Unknown)
+      | Ctl1(JMP,EaD(target)) -> begin
+          line :: (elim_loop env other_lines Unknown)
+        end
       | Ctl1(Jcc(_),EaD(target)) -> begin
           (Ok (rewrite_bcc insn flag_setter)) :: (elim_loop env other_lines flag_setter)
         end

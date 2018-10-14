@@ -117,6 +117,7 @@ let assemble_line env line : assem =
       | Alu2(MUL,Reg(rs),Reg(rd)) ->               gen ["1"; "5"; asm_reg rd; asm_reg rs]
       | Alu2(SAR,Reg(rs),Reg(rd)) ->               gen ["1"; "6"; asm_reg rd; asm_reg rs]
       | Alu2(SAL,Reg(rs),Reg(rd)) ->               gen ["1"; "7"; asm_reg rd; asm_reg rs]
+      | Alu2(SHR,Reg(rs),Reg(rd)) ->               gen ["1"; "8"; asm_reg rd; asm_reg rs]
       | Move2(MOV,Reg(rs),Reg(rd)) ->              gen ["2"; "1"; asm_reg rd; asm_reg rs]
       | Move2(MOV,EaS(rs),Reg(rd)) ->              gen ["3"; "1"; asm_reg rd; asm_reg rs]
       | Move2(MOV,Reg(rd),EaS(rs)) ->              gen ["3"; "9"; asm_reg rd; asm_reg rs]
@@ -135,6 +136,7 @@ let assemble_line env line : assem =
       | Alu2(MUL,Imm(i),Reg(rd)) ->                gen ["5"; "5"; asm_reg rd; "0"; asm_imm env i]
       | Alu2(SAR,Imm(i),Reg(rd)) ->                gen ["5"; "6"; asm_reg rd; "0"; asm_imm env i]
       | Alu2(SAL,Imm(i),Reg(rd)) ->                gen ["5"; "7"; asm_reg rd; "0"; asm_imm env i]
+      | Alu2(SHR,Imm(i),Reg(rd)) ->                gen ["5"; "8"; asm_reg rd; "0"; asm_imm env i]
       | Move2(MOV,Imm(i),Reg(rd)) ->               gen ["6"; "4"; asm_reg rd; "0"; asm_imm env i]
       | Move2(MOV,EaDS(i,rs),Reg(rd)) ->           gen ["7"; "5"; asm_reg rd; asm_reg rs; asm_imm env i]
       | Move2(MOV,Reg(rd),EaDS(i,rs)) ->           gen ["7"; "D"; asm_reg rd; asm_reg rs; asm_imm env i]
@@ -162,7 +164,7 @@ let assemble_line env line : assem =
       | Align(_) -> gen [""]
       | something -> Source(something)
     end
-   | Error(s1,s2) -> raise (Error_during_assembly (String.concat " " [s1; s2]))
+   | Error(s1,s2) -> raise (Error_during_assembly (String.concat " pyf " [s1; s2]))
 
 let should_translate line =
   let open Ast in
@@ -231,3 +233,9 @@ let get_line_as_hex line =
 
 let get_as_hex lines : (string * string) list =
   List.map get_line_as_hex lines
+
+let assemble lines =
+  let lines = prepare lines in
+  let env = first_pass lines in
+  let prog = second_pass env lines in
+  prog, env

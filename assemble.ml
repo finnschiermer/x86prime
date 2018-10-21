@@ -164,7 +164,7 @@ let assemble_line env line : assem =
       | Align(_) -> gen [""]
       | something -> Source(something)
     end
-   | Error(s1,s2) -> raise (Error_during_assembly (String.concat " pyf " [s1; s2]))
+   | Error(s1,s2) -> raise (Error_during_assembly (String.concat " not prime: " [s1; s2]))
 
 let should_translate line =
   let open Ast in

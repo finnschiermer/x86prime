@@ -18,7 +18,7 @@ let line_mapper line =
     Ok(p)
   with
   | Lexer.Error msg -> Error(msg, line)
-  | _ -> Error("failed: ", line)
+  | _ -> Error("unknown insn", line)
 ;;
 
 let parse_lines lines  =

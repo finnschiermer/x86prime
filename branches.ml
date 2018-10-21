@@ -5,12 +5,12 @@ type generator_info = Unknown | Chosen of Ast.line | Conflict of string
 let rewrite_bcc condition (flag_setter : generator_info) =
   let open Ast in
   match condition, flag_setter with
-  | Ctl1(Jcc(cond),lab), Chosen(Alu2(TEST,a,b)) -> Ctl3(CBcc(Ast.rev_cond cond),Imm("0"),b,lab)
-  | Ctl1(Jcc(cond),lab), Chosen(Alu2(CMP,a,b)) -> Ctl3(CBcc(Ast.rev_cond cond),a,b,lab)
-  | Ctl1(Jcc(cond),lab), Chosen(Alu2(op,a,b)) -> Ctl3(CBcc(Ast.rev_cond cond),Imm("0"),b,lab)
-  | Ctl1(Jcc(cond),lab), Unknown -> raise (Branch_conversion_failure_at (Printer.print_insn condition))
+  | Ctl1(Jcc(cond),lab), Chosen(Alu2(TEST,a,b)) -> Ok(Ctl3(CBcc(Ast.rev_cond cond),Imm("0"),b,lab))
+  | Ctl1(Jcc(cond),lab), Chosen(Alu2(CMP,a,b)) -> Ok(Ctl3(CBcc(Ast.rev_cond cond),a,b,lab))
+  | Ctl1(Jcc(cond),lab), Chosen(Alu2(op,a,b)) -> Ok(Ctl3(CBcc(Ast.rev_cond cond),Imm("0"),b,lab))
+  | Ctl1(Jcc(cond),lab), Unknown -> Error ("cannot convert", Printer.print_insn condition)
   | insn,Conflict(lab) -> raise (Branch_conversion_failure_at lab)
-  | insn,_ -> insn
+  | insn,_ -> Ok(insn)
 
 (* add a flag_setter to env at label - or check against one already registered *)
 let unify_inbound_flow env (label : string) (flag_setter : generator_info) =
@@ -70,7 +70,7 @@ let rec elim_loop env lines flag_setter =
           line :: (elim_loop env other_lines Unknown)
         end
       | Ctl1(Jcc(_),EaD(target)) -> begin
-          (Ok (rewrite_bcc insn flag_setter)) :: (elim_loop env other_lines flag_setter)
+          (rewrite_bcc insn flag_setter) :: (elim_loop env other_lines flag_setter)
         end
       | Label(lab) -> begin
           match (List.assoc_opt lab env) with

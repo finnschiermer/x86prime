@@ -199,8 +199,10 @@ let translate_function lines =
     | true,false -> ["%r_a"]
     | true,true -> ["%r_a"; "%r_d"]
   in
-  let code = free_up_needed_registers lines needs free_caller_saves_regs free_callee_saves_regs in
-  rebind_needed_registers code needs free_caller_saves_regs free_callee_saves_regs
+  try
+    let code = free_up_needed_registers lines needs free_caller_saves_regs free_callee_saves_regs in
+    rebind_needed_registers code needs free_caller_saves_regs free_callee_saves_regs
+  with NotEnoughFreeRegisters -> Error("Not enough registers", "Cannot translate this function") :: lines
 
 let rec grab_first_function program =
   match program with

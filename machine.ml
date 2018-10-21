@@ -142,6 +142,26 @@ let eval_condition cond b a =
   | 5 -> a <= b
   | 6 -> a > b
   | 7 -> a >= b
+  | 8 -> begin (* unsigned above  (a > b) *)
+      if a < Int64.zero && b >= Int64.zero then true
+      else if a >= Int64.zero && b < Int64.zero then false
+      else a > b
+    end
+  | 9 -> begin (* unsigned above or equal (a >= b) *)
+      if a < Int64.zero && b >= Int64.zero then true
+      else if a >= Int64.zero && b < Int64.zero then false
+      else a >= b
+    end
+  | 10 -> begin (* unsigned below  (a < b) *)
+      if a < Int64.zero && b >= Int64.zero then false
+      else if a >= Int64.zero && b < Int64.zero then true
+      else a < b
+    end
+  | 11 -> begin (* unsigned below or equal (a <= b) *)
+      if a < Int64.zero && b >= Int64.zero then false
+      else if a >= Int64.zero && b < Int64.zero then true
+      else a <= b
+    end
   | _ -> raise (UnimplementedCondition cond)
 
 let disas_cond cond =
@@ -153,6 +173,10 @@ let disas_cond cond =
   | 5 -> LE
   | 6 -> G
   | 7 -> GE
+  | 8 -> A
+  | 9 -> AE
+  | 10 -> B
+  | 11 -> BE
   | _ -> raise (UnimplementedCondition cond)
 
 let align_output state =

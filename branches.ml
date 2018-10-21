@@ -1,4 +1,4 @@
-exception Cannot_unify_at of string
+exception Branch_conversion_failure_at of string
 
 type generator_info = Unknown | Chosen of Ast.line | Conflict of string
 
@@ -8,8 +8,8 @@ let rewrite_bcc condition (flag_setter : generator_info) =
   | Ctl1(Jcc(cond),lab), Chosen(Alu2(TEST,a,b)) -> Ctl3(CBcc(Ast.rev_cond cond),Imm("0"),b,lab)
   | Ctl1(Jcc(cond),lab), Chosen(Alu2(CMP,a,b)) -> Ctl3(CBcc(Ast.rev_cond cond),a,b,lab)
   | Ctl1(Jcc(cond),lab), Chosen(Alu2(op,a,b)) -> Ctl3(CBcc(Ast.rev_cond cond),Imm("0"),b,lab)
-  | Ctl1(Jcc(cond),lab), Unknown -> raise (Cannot_unify_at "unknown")
-  | insn,Conflict(lab) -> raise (Cannot_unify_at lab)
+  | Ctl1(Jcc(cond),lab), Unknown -> raise (Branch_conversion_failure_at (Printer.print_insn condition))
+  | insn,Conflict(lab) -> raise (Branch_conversion_failure_at lab)
   | insn,_ -> insn
 
 (* add a flag_setter to env at label - or check against one already registered *)

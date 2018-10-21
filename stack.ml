@@ -12,8 +12,6 @@ let rec stack_change lines pushes pops =
   | _ :: _ -> pushes,pops
   | [] -> pushes,pops
 
-exception PushAndPop
-
 let rec process_all_blocks lines =
   let (pushes,pops) = stack_change lines 0 0 in
   if pushes = 0 && pops = 0 then rewrite_block lines 0 None

@@ -1,4 +1,4 @@
-exception Address_mode_conversion_failed
+exception Address_mode_conversion_failed of string
 
 let rec convert_loop lines =
   let open Ast in
@@ -35,7 +35,8 @@ and rewrite_to_load insn tail =
      Ok(Move2(MOV,EaDS(d,m),Reg("%r_d"))) 
      :: (Ok(Alu2(opc,Reg("%r_d"),reg)) 
          :: (convert_loop tail))
-  | _ -> raise Address_mode_conversion_failed
+  | Ok(i) -> raise (Address_mode_conversion_failed (Printer.print_insn i))
+  | _ -> raise (Address_mode_conversion_failed "internal error")
 
 and inject_leaq insn tail =
   let open Ast in
@@ -66,7 +67,8 @@ and inject_leaq insn tail =
       let trigger = Ok(Move2(opc,Reg("%r_d"),EaS("%r_a"))) in
      insn1 :: insn2 ::(convert_loop (trigger :: tail))
     end
-  | _ -> raise Address_mode_conversion_failed
+  | Ok(i) -> raise (Address_mode_conversion_failed (Printer.print_insn i))
+  | _ -> raise (Address_mode_conversion_failed "internal error")
 
 and rewrite_to_store insn tail =
   let open Ast in
@@ -93,7 +95,8 @@ and rewrite_to_store insn tail =
             :: (Ok(Move2(MOV,Reg("%r_d"),EaDS(d,m)))
                 :: (convert_loop tail)))
     end
-  | _ -> raise Address_mode_conversion_failed
+  | Ok(i) -> raise (Address_mode_conversion_failed (Printer.print_insn i))
+  | _ -> raise (Address_mode_conversion_failed "internal error")
 
 let convert lines = 
   convert_loop lines

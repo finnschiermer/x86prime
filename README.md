@@ -11,7 +11,7 @@ install menhir and ocamlbuild.
 On debian based linux this is
 ~~~
 > sudo apt install ocaml opam
-> opam init
+> opam init -a
 ~~~
 On some systems, the default ocaml version is too old. Use "ocaml --version"
 to find which version you have. If you have something before 4.05.0, you need

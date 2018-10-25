@@ -67,7 +67,7 @@ the assembly file, and -txl to ask for translation from ordinary
 x86 assembly:
 
 ~~~
-> gcc -S -Og my_amazing_program.c
+> gcc -S -Og -fno-stack-protector my_amazing_program.c
 > x86prime.native -f my_amazing_program.s -asm -list -txl
 ~~~
 

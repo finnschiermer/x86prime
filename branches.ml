@@ -9,7 +9,7 @@ let rewrite_bcc condition (flag_setter : generator_info) =
   | Ctl1(Jcc(cond),lab), Chosen(Alu2(CMP,a,b)) -> Ok(Ctl3(CBcc(Ast.rev_cond cond),a,b,lab))
   | Ctl1(Jcc(cond),lab), Chosen(Alu2(op,a,b)) -> Ok(Ctl3(CBcc(Ast.rev_cond cond),Imm("0"),b,lab))
   | Ctl1(Jcc(cond),lab), Unknown -> Error ("cannot convert", Printer.print_insn condition)
-  | insn,Conflict(lab) -> raise (Branch_conversion_failure_at lab)
+  | insn,Conflict(lab) -> Error ("cannot join with", Printer.print_insn insn)
   | insn,_ -> Ok(insn)
 
 (* add a flag_setter to env at label - or check against one already registered *)
@@ -17,7 +17,18 @@ let unify_inbound_flow env (label : string) (flag_setter : generator_info) =
   match (List.assoc_opt label env),flag_setter with
   | Some(Chosen(setter)),Chosen(new_setter) -> begin
       if setter = new_setter then Chosen(setter)
-      else Conflict(label)
+      else begin
+          match setter, new_setter with
+            (* compare unifies if both compares are equal - is this redundant? *)
+          | Alu2(CMP,a1,b1),Alu2(CMP,a2,b2) when (a1=a2 && b1=b2) -> Chosen(setter)
+          | Alu2(CMP,_,_),_ -> Conflict(label)
+          | _,Alu2(CMP,_,_) -> Conflict(label)
+          | Alu2(_,_,d1),Alu2(_,_,d2) when d1=d2 -> Chosen(setter)
+          | Alu2(_,_,d1),Move2(_,_,d2) when d1=d2 -> Chosen(setter)
+          | Move2(_,_,d1),Alu2(_,_,d2) when d1=d2 -> Chosen(setter)
+          | Move2(_,_,d1),Move2(_,_,d2) when d1=d2 -> Chosen(setter)
+          | _ -> Conflict(label)
+        end
     end
   | Some(x),Unknown -> x
   | Some(Unknown),x -> x

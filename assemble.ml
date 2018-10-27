@@ -37,6 +37,22 @@ let asm_reg rd =
   else if rd = "%r13d" then "D"
   else if rd = "%r14d" then "E"
   else if rd = "%r15d" then "F"
+  else if rd = "%al" then "0"
+  else if rd = "%bl" then "1"
+  else if rd = "%cl" then "2"
+  else if rd = "%dl" then "3"
+  else if rd = "%bpl" then "4"
+  else if rd = "%sil" then "5"
+  else if rd = "%dil" then "6"
+  else if rd = "%spl" then "7"
+  else if rd = "%r8l" then "8"
+  else if rd = "%r9l" then "9"
+  else if rd = "%r10l" then "A"
+  else if rd = "%r11l" then "B"
+  else if rd = "%r12l" then "C"
+  else if rd = "%r13l" then "D"
+  else if rd = "%r14l" then "E"
+  else if rd = "%r15l" then "F"
   else raise (Error_during_assembly ("Unknown register " ^ rd))
 
 let reverse_string s =

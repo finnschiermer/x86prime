@@ -36,6 +36,9 @@ let directive = ".text" | ".globl" | ".size" | ".section" | ".file" | ".ident"
 let ignored = ".cfi_def_cfa_offset" | ".cfi_offset" | ".cfi_remember_state" | ".cfi_restore" 
     | ".cfi_def_cfa" | ".cfi_def_cfa_register" | ".subsections_via_symbols"
 
+let regs8 = "%al" | "%bl" | "%cl" | "%dl" | "%bpl" | "%sil" | "%dil" | "%spl"
+    | "%r8l" | "%r9l" | "%r10l" | "%r11l" | "%r12l" | "%r13l" | "%r14l" | "%r15l"
+
 let regs32 = "%eax" | "%ebx" | "%ecx" | "%edx" | "%ebp" | "%esi" | "%edi" | "%esp"
     | "%r8d" | "%r9d" | "%r10d" | "%r11d" | "%r12d" | "%r13d" | "%r14d" | "%r15d"
 
@@ -62,6 +65,7 @@ rule read = parse
 | ':'       { COLON         }
 | regs64    { REG(get lexbuf) }
 | regs32    { REG(get lexbuf) }
+| regs8     { REG(get lexbuf) }
 | "leaq"    { ALU2(LEA)   }
 | "addq"     { ALU2(ADD)   }
 | "subq"     { ALU2(SUB)   }
@@ -78,7 +82,9 @@ rule read = parse
 | "orl"      { ALU2(OR)    }
 | "xorl"     { ALU2(XOR)   }
 | "testq"     { ALU2(TEST)   }
+| "testl"     { ALU2(TEST)   }
 | "cmpq"     { ALU2(CMP)   }
+| "cmpl"     { ALU2(CMP)   }
 | "movl"    { MOVE(MOV) }
 | "movq"    { MOVE(MOV) }
 | "in"      { IN }

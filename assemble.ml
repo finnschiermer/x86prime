@@ -189,13 +189,13 @@ let should_translate line =
     | Ok(Ctl0(_)) | Ok(Ctl3(_)) | Ok(Label(_)) | Ok(Quad(_)) | Ok(Comm(_)) | Ok(Align(_)) | Error(_) -> true
   | _ -> false
 
-let print_assembly_line line =
+let print_assembly_line oc line =
   match line with
-  | Assembly(a,s,i) -> Printf.printf "%8s : %-20s  #  " a s; (Printer.line_printer (Ok i))
-  | Source(i) -> Printf.printf "<**>                #  "; (Printer.line_printer (Ok i))
+  | Assembly(a,s,i) -> Printf.fprintf oc "%8s : %-20s  #  " a s; (Printer.line_printer oc (Ok i))
+  | Source(i) -> Printf.fprintf oc "<**>                #  "; (Printer.line_printer oc (Ok i))
 
-let print_assembly lines =
-  List.iter print_assembly_line lines
+let print_assembly oc lines =
+  List.iter (print_assembly_line oc) lines
 
 let rec assign_addresses curr_add lines =
   match lines with

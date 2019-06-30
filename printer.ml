@@ -74,9 +74,9 @@ let print_insn insn =
   | Fun_end -> Printf.sprintf "    .cfi_endproc"
   | Other(s) -> Printf.sprintf "Other %s" s
 
-let line_printer line =
+let line_printer oc line =
   let open Ast in
   match line with
-  | Ok(insn) -> Printf.printf "%s\n" (print_insn insn)
-  | Error(a,b) -> Printf.printf "ERROR: %s : %s\n" a b
+  | Ok(insn) -> Printf.fprintf oc "%s\n" (print_insn insn)
+  | Error(a,b) -> Printf.fprintf oc "# ERROR: %s : %s\n" a b
 

@@ -93,12 +93,12 @@ let rec elim_loop env lines flag_setter =
   | line :: other_lines -> line :: (elim_loop env other_lines flag_setter)
   | [] -> []
 ;;
-let print_env env =
+let print_env oc env =
   let printer x =
     match x with
-    | nm,Unknown -> Printf.printf "%s : Unknown\n" nm
-    | nm,Chosen(insn) -> (Printf.printf "%s : " nm); (Printer.line_printer (Ok(insn)))
-    | nm,Conflict(lab) -> (Printf.printf "%s : Conflict at %s\n" nm lab)
+    | nm,Unknown -> Printf.fprintf oc "%s : Unknown\n" nm
+    | nm,Chosen(insn) -> (Printf.fprintf oc "%s : " nm); (Printer.line_printer oc (Ok(insn)))
+    | nm,Conflict(lab) -> (Printf.fprintf oc "%s : Conflict at %s\n" nm lab)
   in List.iter printer env
 
 let elim_flags lines  =

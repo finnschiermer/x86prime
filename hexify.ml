@@ -44,15 +44,19 @@ exception InvalidArgument of string
 exception UnimplementedOption of string
 
 let cmd_spec = [
-    ("-f", Arg.Set_string program_name, "<name of file> translate .prime file to .hex file");
+    ("-f", Arg.Set_string program_name, "<name of file> encode .prime file as .hex file");
   ]
 
 let id s = 
   Printf.printf "Unknown argument '%s' - run with -h for help\n" s;
   raise (InvalidArgument s)
 
+let print_syms oc syms =
+  let print_sym (lab,addr) = Printf.fprintf oc "%s : %s\n" lab addr in
+  List.iter print_sym syms 
+
 let () = 
-  Arg.parse cmd_spec id "Transform .prime files (generate by 'primify') to .hex files\n\n";
+  Arg.parse cmd_spec id "Encode .prime file (generate by 'primify') as .hex file\n\n";
   if not (Filename.check_suffix !program_name ".prime") then
     raise (InvalidArgument "Filename must end in '.prime'");
   if !program_name <> "" then begin
@@ -60,8 +64,10 @@ let () =
       let source = read !program_name in
       let source = Translate.translate source in
       let source = Assemble.prepare source in
-      let prog,_ = Assemble.assemble source in
+      let prog,syms = Assemble.assemble source in
       let oc = open_out ((Filename.chop_suffix !program_name ".prime") ^ ".hex") in 
-      Assemble.print_assembly oc prog
+      Assemble.print_assembly oc prog;
+      let oc = open_out ((Filename.chop_suffix !program_name ".prime") ^ ".sym") in
+      print_syms oc syms
     end
   else Printf.printf "No program, doing nothing :-)   ... try -h for help\n"

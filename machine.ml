@@ -76,14 +76,14 @@ let hex_to_int c =
 
 
 
-let init (hex : (string * string) list) : state = 
+let init (hex : (int * string) list) : state = 
   let s = create () in
-  let write_line (a,b) =
-    Scanf.sscanf a "%x" (fun addr ->
-        for entry = 0 to ((String.length b) / 2) - 1 do
-          let digit = hex_to_int b.[entry * 2] * 16 + hex_to_int b.[entry * 2 + 1] in
-          Memory.write_byte s.mem (Int64.of_int (addr + entry)) digit;
-        done)
+  let write_line (addr,b) = begin
+    for entry = 0 to ((String.length b) / 2) - 1 do
+      let digit = hex_to_int b.[entry * 2] * 16 + hex_to_int b.[entry * 2 + 1] in
+      Memory.write_byte s.mem (Int64.of_int (addr + entry)) digit;
+    done
+  end
   in
   List.iter write_line hex;
   s

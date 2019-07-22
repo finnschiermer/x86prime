@@ -162,10 +162,8 @@ let process_a3_options _ =
   end
 
 let cmd_spec = [
-    ("-f", Arg.Set_string program_name, "<name of file> simulates run (required option)");
     ("-show", Arg.Set do_show, "show each simulation step");
     ("-tracefile", Arg.Set_string tracefile_name, "<name of file> create a trace file for later verfication");
-    ("-run", Arg.Set_string entry_name, "<name of function> starts simulation at indicated function");
     ("-perf", Arg.Set print_perf, "estimate performance and print stats");
     ("-bp_type", Arg.Set_string p_type, "t/nt/btfnt/oracle/local/gshare select type of branch predictor");
     ("-bp_size", Arg.Set_int p_idx_size, "<size> select number of bits used to index branch predictor");
@@ -186,15 +184,16 @@ let cmd_spec = [
     ("-dec_lat", Arg.Set_int dec_latency, "<latency> latency of decode stages");
     ("-pipe_width", Arg.Set_int pipe_width, "<width> max number of insn fetched/clk");
     ("-ooo", Arg.Set ooo, "enable out-of-order scheduling");
-    ("-pipe", Arg.Set_string set_pipe, "simple/super/ooo select A3 pipeline configuration");
-    ("-mem", Arg.Set_string set_mem, "magic/real select A3 memory configuration");
+    ("-pipe", Arg.Set_string set_pipe, "simple/super/ooo select base pipeline configuration");
+    ("-mem", Arg.Set_string set_mem, "magic/real select base memory configuration");
     ("-print_config", Arg.Set do_print_config, "print detailed performance model configuration")
   ]
 
-let id s = 
-  Printf.printf "Unknown argument '%s' - run with -h for help\n" s;
-  raise (InvalidArgument s)
-
+let set_names s = 
+  if !program_name = "" then program_name := s
+  else if !entry_name = "" then entry_name := s
+  else raise (InvalidArgument "Wrong arguments. Must be <hex-file> <start-label>")
+  
 let get_symbols fname =
   let ic = open_in fname in
   let ok = ref true in
@@ -224,7 +223,7 @@ let get_hex fname =
   !lines
 
 let () = 
-  Arg.parse cmd_spec id "Simulate x86prime program from .hex format\n\n";
+  Arg.parse cmd_spec set_names "Simulate x86prime program from .hex format\n\n";
   process_a3_options ();
   if !do_print_config then print_config ();
   if !program_name <> "" then begin
@@ -235,6 +234,6 @@ let () =
     if !entry_name <> "" then begin
       labels := Some (get_symbols ((Filename.chop_suffix !program_name ".hex") ^ ".sym"));
       run !entry_name
-    end
+    end else raise (InvalidArgument "no valid start-label")
   end
   else Printf.printf "No program, doing nothing :-)\n"

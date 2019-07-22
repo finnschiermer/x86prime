@@ -39,28 +39,18 @@ let read fname =
 exception NoValidProgram
 exception UnknownEntryPoint of string
 exception InvalidArgument of string
-
-
 exception UnimplementedOption of string
 
-let cmd_spec = [
-    ("-f", Arg.Set_string program_name, "<name of file> translate .s file to .prime file");
-  ]
-
-let id s = 
-  Printf.printf "Unknown argument '%s' - run with -h for help\n" s;
-  raise (InvalidArgument s)
+let set_file s = 
+  program_name := s
 
 let () = 
-  Arg.parse cmd_spec id "Transform .s files (generate by 'gcc -Og -S <fname.c>') to .prime files\n\n";
+  Arg.parse [] set_file "Transform .s files (generate by 'gcc -Og -S <fname.c>') to .prime files\n\n";
   if not (Filename.check_suffix !program_name ".s") then
-    raise (InvalidArgument "Filename must end in '.s'");
-  if !program_name <> "" then begin
-      Lexer.translating := true;
-      let source = read !program_name in
-      let source = Translate.translate source in
-      let source = Assemble.prepare source in
-      let oc = open_out ((Filename.chop_suffix !program_name ".s") ^ ".prime") in 
-      print_lines oc source;
-    end
-  else Printf.printf "No program, doing nothing :-)   ... try -h for help\n"
+    raise (InvalidArgument "Filename not given or does not end with '.s'");
+    Lexer.translating := true;
+    let source = read !program_name in
+    let source = Translate.translate source in
+    let source = Assemble.prepare source in
+    let oc = open_out ((Filename.chop_suffix !program_name ".s") ^ ".prime") in 
+    print_lines oc source

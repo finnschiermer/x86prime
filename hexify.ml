@@ -39,24 +39,17 @@ let read fname =
 exception NoValidProgram
 exception UnknownEntryPoint of string
 exception InvalidArgument of string
-
-
 exception UnimplementedOption of string
 
-let cmd_spec = [
-    ("-f", Arg.Set_string program_name, "<name of file> encode .prime file as .hex file");
-  ]
-
-let id s = 
-  Printf.printf "Unknown argument '%s' - run with -h for help\n" s;
-  raise (InvalidArgument s)
+let set_file s = 
+  program_name := s
 
 let print_syms oc syms =
   let print_sym (lab,addr) = Printf.fprintf oc "%s : %s\n" lab addr in
   List.iter print_sym syms 
 
 let () = 
-  Arg.parse cmd_spec id "Encode .prime file (generate by 'primify') as .hex file\n\n";
+  Arg.parse [] set_file "Encode .prime file (generate by 'primify') as .hex file\n\n";
   if not (Filename.check_suffix !program_name ".prime") then
     raise (InvalidArgument "Filename must end in '.prime'");
   if !program_name <> "" then begin
@@ -70,4 +63,4 @@ let () =
       let oc = open_out ((Filename.chop_suffix !program_name ".prime") ^ ".sym") in
       print_syms oc syms
     end
-  else Printf.printf "No program, doing nothing :-)   ... try -h for help\n"
+  else Printf.printf "No program, doing nothing :-)\n"

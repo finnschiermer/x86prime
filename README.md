@@ -1,6 +1,6 @@
 # x86prime
 
-fairly limited x86 to x86' translator
+A few tools for our x86 subset, x86prime, known as just "prime"
 
 ## Prerequisites
 
@@ -28,10 +28,15 @@ then restart it before proceeding
 
 ## Building
 
-Use ocamlbuild to build an executable
+The script "buildall.sh" will build 4 tools:
+
+ * primify, a tool which translates real x86 assembler into prime assembler
+ * hexify, a tool which encodes prime assembler into a format known as "hex"
+ * prun, a tool which reads hex files and runs them
+ * prerf, like prun, but collect performance statistics
 
 ~~~
-> ocamlbuild -use-menhir x86prime.native
+> ./builall.sh
 ~~~
 
 If by accident you have built part of the program using an old version, you
@@ -40,45 +45,55 @@ project. If this happens, remove the "_build" subdirectory.
 
 And build again.
 
-## Assembling
+## Generating x86 assembler
 
-Write a x86prime program and put it in a file, say prog.s.
-Then call x86prime with -f, specifying the assembly file, and 
--asm to assemble to a memory image. Add -list if you want to
-see a printout of the assembly.
+x86 assembler is in files with suffix ".s"
 
-~~~
-> x86prime.native -f prog.s -asm -list
-~~~
-
-To save the program in "hex" format just pipe the output into
-a file of your choice:
+You can write one yourself. Or generate one from a program written in "C"
+using a C-compiler.
 
 ~~~
-> x86prime.native -f prog.s -asm -list > prog.hex
+> gcc -S -Og my_program.c
 ~~~
 
+## Translating x86 into prime (x86prime)
 
-## Cross-assembling
-
-Use gcc to compile your favourite C program to assembler at
-optimization level "-Og", then call x86prime with -f, specifying
-the assembly file, and -txl to ask for translation from ordinary 
-x86 assembly:
+The "./primify" program will translate an x86 assembler source file into
+correspondingly named ".prime" files.
 
 ~~~
-> gcc -S -Og -fno-stack-protector my_amazing_program.c
-> x86prime.native -f my_amazing_program.s -asm -list -txl
+> ./primify my_program.s
 ~~~
+
+This results in a new file, "my_program.prime"
+
+## Encoding into hex format
+
+The simulators cannot directly read the symbolic prime assembler. You need to
+encode it into hex-format. Use
+
+~~~
+> ./hexify -f my_program.prime
+~~~
+
+This produces "my_program.hex", which can be inspected to learn how the prime
+program is encoded in numbers.
+
+It also produces "my_program.sym", which is a list of symbols. This is used by
+the simulator to allow you to pick which part of the code to execute.
 
 ## Running
 
-Call x86prime with -run, specifying the entry point for the simulation:
+Programs are simulated by "./prun"
 
 ~~~
-> gcc -S -Og my_amazing_program.c
-> x86prime.native -f my_amazing_program.s -asm -txl -show -run my_little_function
+> ./prun my_program.hex my_start_function
 ~~~
+
+Here, the label "my_start_function" must have been defined by the original ".prime"
+program.
+
+Without more options, the simulation is silent. To see what happens, add "-show" option
 
 Sit back, relax and watch the blinkenlights.
 
@@ -88,17 +103,17 @@ A tracefile records all changes to memory and register made by your program.
 You request a tracefile by the "-tracefile" option:
 
 ~~~
-> x86prime.native -f my_amazing_program.s -asm -txl -show -run my_little_function -tracefile prog.trc
+> ./prun my_program.s my_start_function -tracefile prog.trc
 ~~~
 
 
 ## Limitations to cross-assembling
 
-The translation from x86 to x86 is not perfect.
+The translation from x86 to prime is not perfect.
 
  * When gcc optimizes heavily ("-O2, -O3"), the code patterns generated will not
-   be translated correctly. In most cases x86prime will stop with a "Cannot unify at.."
-   exception. We believe "-Og" to be working reasonably well, so stick to that.
+   be translated correctly. In most cases primify will stop with an exception. 
+   We believe "-Og" to be working reasonably well, so stick to that.
 
  * When gcc needs to use almost all registers in a function, translation will either fail
    or just be incorrect.

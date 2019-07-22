@@ -5,7 +5,7 @@ let tracefile_name = ref ""
 let entry_name = ref ""
 let do_show = ref false
 let do_print_config = ref false
-let print_perf = ref false
+let print_perf = ref true
 
 exception NoValidProgram
 exception UnknownEntryPoint of string
@@ -103,6 +103,25 @@ let run entry =
                   dec_lat = !dec_latency;
                 } in
               Machine.run p_control !machine;
+              if !print_perf then begin
+                let tries,miss = Predictors.predictor_get_results p_control.bp in
+                let mr = (float_of_int miss) /. (float_of_int (tries)) in
+                Printf.printf "\nBranch predictions: %8d   miss %8d    missrate: %f\n" tries miss mr;
+                let tries,miss = Predictors.predictor_get_results p_control.rp in
+                let mr = (float_of_int miss) /. (float_of_int (tries)) in
+                Printf.printf "Return predictions: %8d   miss %8d    missrate: %f\n" tries miss mr;
+                let r,w,m = Cache.cache_get_stats p_control.l2 in
+                let mr = (float_of_int m) /. (float_of_int (r+w)) in
+                Printf.printf "L2-Cache reads: %8d   writes: %8d   miss: %8d   missrate: %f\n" r w m mr;
+                let r,w,m = Cache.cache_get_stats p_control.i in
+                let mr = (float_of_int m) /. (float_of_int (r+w)) in
+                Printf.printf "I-Cache reads:  %8d   writes: %8d   miss: %8d   missrate: %f\n" r w m mr;
+                let r,w,m = Cache.cache_get_stats p_control.d in
+                let mr = (float_of_int m) /. (float_of_int (r+w)) in
+                Printf.printf "D-Cache reads:  %8d   writes: %8d   miss: %8d   missrate: %f\n" r w m mr;
+                let finished = Resource.get_earliest p_control.retire in
+                Printf.printf "Execution finished at cycle %d\n" finished
+              end
         end
     end
 
@@ -111,9 +130,61 @@ let set_mem = ref ""
 
 exception UnimplementedOption of string
 
+let process_a3_options _ = 
+  begin
+    match !set_pipe with
+    | "" | "simple" -> ()
+    | "super" -> begin
+        dec_latency := 3;
+        pipe_width := 3;
+      end
+    | "ooo" -> begin
+        ooo := true;
+        dec_latency := 5;
+        pipe_width := 3;
+      end
+    | _ -> raise (UnimplementedOption ("-pipe " ^ !set_pipe))
+  end;
+  begin
+    match !set_mem with
+    | "" | "real" -> ()
+    | "magic" -> begin
+        mem_latency := 0;
+        l2_latency := 0;
+      end
+    | "epic" -> begin
+        d_latency := 1;
+        i_latency := 1;
+        l2_latency := 0;
+        mem_latency := 0;
+      end
+    | _ -> raise (UnimplementedOption ("-mem " ^ !set_mem))
+  end
+
 let cmd_spec = [
     ("-show", Arg.Set do_show, "show each simulation step");
-    ("-tracefile", Arg.Set_string tracefile_name, "<name of file> create a trace file for later verfication");
+    ("-bp_type", Arg.Set_string p_type, "t/nt/btfnt/oracle/local/gshare select type of branch predictor");
+    ("-bp_size", Arg.Set_int p_idx_size, "<size> select number of bits used to index branch predictor");
+    ("-rp_size", Arg.Set_int p_ret_size, "<size> select number of entries in return predictor");
+    ("-mem_lat", Arg.Set_int mem_latency, "<clks> number of clock cycles to read from main memory");
+    ("-d_assoc", Arg.Set_int d_assoc, "<assoc> associativity of L1 D-cache");
+    ("-d_lat", Arg.Set_int d_latency, "<latency> latency of L1 D-cache read");
+    ("-d_idx_sz", Arg.Set_int d_idx_bits, "<size> number of bits used for indexing L1 D-cache");
+    ("-d_blk_sz", Arg.Set_int d_blk_bits, "<size> number of bits used to address byte in block of L1 D-cache");
+    ("-i_assoc", Arg.Set_int i_assoc, "<assoc> associativity of L1 I-cache");
+    ("-i_lat", Arg.Set_int i_latency, "<latency> latency of L1 I-cache read");
+    ("-i_idx_sz", Arg.Set_int i_idx_bits, "<size> number of bits used for indexing L1 I-cache");
+    ("-i_blk_sz", Arg.Set_int i_blk_bits, "<size> number of bits used to address byte in block of L1 I-cache");
+    ("-l2_assoc", Arg.Set_int l2_assoc, "<assoc> associativity of L2 cache");
+    ("-l2_lat", Arg.Set_int l2_latency, "<latency> latency of L2 cache read");
+    ("-l2_idx_sz", Arg.Set_int l2_idx_bits, "<size> number of bits used for indexing L2 cache");
+    ("-l2_blk_sz", Arg.Set_int l2_blk_bits, "<size> number of bits used to address byte in block of L2 cache");
+    ("-dec_lat", Arg.Set_int dec_latency, "<latency> latency of decode stages");
+    ("-pipe_width", Arg.Set_int pipe_width, "<width> max number of insn fetched/clk");
+    ("-ooo", Arg.Set ooo, "enable out-of-order scheduling");
+    ("-pipe", Arg.Set_string set_pipe, "simple/super/ooo select base pipeline configuration");
+    ("-mem", Arg.Set_string set_mem, "magic/real select base memory configuration");
+    ("-print_config", Arg.Set do_print_config, "print detailed performance model configuration")
   ]
 
 let set_names s = 
@@ -151,6 +222,7 @@ let get_hex fname =
 
 let () = 
   Arg.parse cmd_spec set_names "Simulate x86prime program from .hex format\n\n";
+  process_a3_options ();
   if !do_print_config then print_config ();
   if !program_name <> "" then begin
     let hex = get_hex !program_name in

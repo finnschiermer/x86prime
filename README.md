@@ -31,7 +31,7 @@ then restart it before proceeding
 The script "buildall.sh" will build 4 tools:
 
  * primify, a tool which translates real x86 assembler into prime assembler
- * hexify, a tool which encodes prime assembler into a format known as "hex"
+ * prasm, the assembler, a tool which encodes prime assembler into a format known as "hex"
  * prun, a tool which reads hex files and runs them
  * prerf, like prun, but collect performance statistics
 
@@ -70,10 +70,10 @@ This results in a new file, "my_program.prime"
 ## Encoding into hex format
 
 The simulators cannot directly read the symbolic prime assembler. You need to
-encode it into hex-format. Use
+assemble it into hex-format. Use
 
 ~~~
-> ./hexify -f my_program.prime
+> ./prasm my_program.prime
 ~~~
 
 This produces "my_program.hex", which can be inspected to learn how the prime

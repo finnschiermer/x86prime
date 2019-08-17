@@ -35,6 +35,7 @@ let print_opc opc =
   | POP -> "pop"
   | CALL -> "call"
   | MUL -> "imulq"
+  | SYSCALL -> "syscall"
 ;;
 
 let print_arg arg =
@@ -56,8 +57,6 @@ let print_insn insn =
   | Label(name) -> Printf.sprintf "%s:" name
   | Alu2(opc,a,b)
   | Move2(opc,a,b) ->  Printf.sprintf "    %s %s, %s" (print_opc opc) (print_arg a) (print_arg b)
-  | In(a,b) -> Printf.sprintf "    in (%s),%s" a b
-  | Out(a,b) -> Printf.sprintf "    out %s,(%s)" a b
   | PuPo(opc,a) -> Printf.sprintf "    %s %s" (print_opc opc) (print_arg a)
   | Ctl3(opc,a,b,c) -> Printf.sprintf "    %s %s,%s,%s" (print_opc opc) (print_arg a) (print_arg b) (print_arg c)
   | Ctl2(opc,a,b) -> Printf.sprintf "    %s %s,%s" (print_opc opc) (print_arg a) (print_arg b)

@@ -1,18 +1,18 @@
 
 inline long read_long() {
   long result;
-  asm volatile ("in (0),%[result]" : [result] "=r" (result) : );
+  asm volatile ("movq $0,%%rax\n\tsyscall" : "=a" (result));
   return result;
 }
 
 inline long gen_random() {
   long result;
-  asm volatile ("in (1),%[result]" : [result] "=r" (result) : );
+  asm volatile ("movq $1,%%rax\n\tsyscall" : "=a" (result));
   return result;
 }
 
 inline void write_long(long value) {
-  asm volatile ("out %[value],(0)" : : [value] "r" (value) );
+  asm volatile ("movq $2,%%rax\n\tsyscall" : : "b" (value) : "rax");
 }
 
 long* cur_allocator;
@@ -25,6 +25,7 @@ void init_allocator() {
 long* allocate(long num_entries) {
   long* res = cur_allocator;
   cur_allocator = &cur_allocator[num_entries];
+  return res;
 }
 
 long* get_random_array(long num_entries) {

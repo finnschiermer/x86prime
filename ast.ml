@@ -1,7 +1,7 @@
   type condition =  E | NE | G | GE | L | LE | A | AE | B | BE
 
   type opcode = ADD | SUB | AND | OR | XOR | CMP | LEA | TEST | MOV | RET | JMP | SAR | SAL | SHR 
-                | Jcc of condition | CBcc of condition | CALL | PUSH | POP | MUL
+                | Jcc of condition | CBcc of condition | CALL | PUSH | POP | MUL | SYSCALL
 
 (*
   Eaxxx explanation: names are given according to how the Ea is computed
@@ -26,8 +26,6 @@
   | Alu2 of opcode * op_spec * op_spec
   | PuPo of opcode * op_spec
   | Move2 of opcode * op_spec * op_spec
-  | In of string * string
-  | Out of string * string
   | Ctl3 of opcode * op_spec * op_spec * op_spec
   | Ctl2 of opcode * op_spec * op_spec
   | Ctl1 of opcode * op_spec

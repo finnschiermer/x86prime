@@ -54,8 +54,6 @@ let extract_regs line =
      | Alu2(_,a,b) -> (extract_from_op a) lor (extract_from_op b)
      | PuPo(_,a) -> extract_from_op a
      | Move2(_,a,b) -> (extract_from_op a) lor (extract_from_op b)
-     | In(_,b) -> 1 lsl (regnr b)
-     | Out(a,_) -> 1 lsl (regnr a)
      | Ctl3(_,a,b,c) -> (extract_from_op a) lor (extract_from_op b) lor (extract_from_op c)
      | Ctl2(_,a,b) -> (extract_from_op a) lor (extract_from_op b)
      | Ctl1(_,a) -> extract_from_op a
@@ -129,8 +127,6 @@ let rebind_register lines from_reg to_reg =
         | Alu2(o,a,b) -> Ok(Alu2(o,rebind_reg_in_op a,rebind_reg_in_op b))
         | PuPo(o,a) -> Ok(PuPo(o,rebind_reg_in_op a))
         | Move2(o,a,b) -> Ok(Move2(o,rebind_reg_in_op a, rebind_reg_in_op b))
-        | In(a,b) -> Ok(In(a,rebind_reg b))
-        | Out(a,b) -> Ok(Out(rebind_reg a,b))
         | Ctl3(o,a,b,c) -> Ok(Ctl3(o,rebind_reg_in_op a, rebind_reg_in_op b, rebind_reg_in_op c))
         | Ctl2(o,a,b) -> Ok(Ctl2(o,rebind_reg_in_op a, rebind_reg_in_op b))
         | Ctl1(o,a) -> Ok(Ctl1(o,rebind_reg_in_op a))

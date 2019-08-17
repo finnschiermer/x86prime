@@ -15,8 +15,6 @@
 %token <Ast.opcode> CTL1
 %token <Ast.opcode> CTL2
 %token <Ast.opcode> CTL3
-%token IN
-%token OUT
 %token COLON
 %token QUAD
 %token COMM
@@ -53,8 +51,6 @@ instruction:
  | DEC v1 = arg                      { Ast.Alu2(Ast.SUB, Imm("1"), v1) }
  | i = ALU2 v1 = arg COMMA v2 = arg  { Ast.Alu2(i, v1, v2) }
  | i = MOVE v1 = arg COMMA v2 = arg  { Ast.Move2(i, v1, v2) }
- | IN LPAR v1 = NUM RPAR COMMA v2 = REG  { Ast.In(v1, v2) }
- | OUT v1 = REG COMMA LPAR v2 = NUM RPAR { Ast.Out(v1, v2) }
  | i = PUPO v1 = arg                 { Ast.PuPo(i, v1) }
  | i = CTL3 DOLLAR v1 = NUM COMMA v2 = REG COMMA t = ID  { Ast.Ctl3(i, Ast.Imm(v1), Ast.Reg(v2), Ast.EaD(t)) }
  | i = CTL3 v1 = REG COMMA v2 = REG COMMA t = ID  { Ast.Ctl3(i, Ast.Reg(v1), Ast.Reg(v2), Ast.EaD(t)) }

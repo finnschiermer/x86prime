@@ -278,21 +278,20 @@ let disas_inst state =
   let second_byte = fetch_from_offs state 1 in
   let (rd,rs) = split_byte second_byte in
   match hi,lo with
-  | 0,0 -> Ast.Ctl1(RET,Reg(disas_reg rs));
-  | 0,1 -> Ast.In(Printf.sprintf "%d" rs,disas_reg rd)
-  | 0,2 -> Ast.Out(disas_reg rd,Printf.sprintf "%d" rs)
-  | 1,0 -> Ast.Alu2(ADD,Reg(disas_reg rs), Reg(disas_reg rd));
-  | 1,1 -> Ast.Alu2(SUB,Reg(disas_reg rs), Reg(disas_reg rd));
-  | 1,2 -> Ast.Alu2(AND,Reg(disas_reg rs), Reg(disas_reg rd));
-  | 1,3 -> Ast.Alu2(OR,Reg(disas_reg rs), Reg(disas_reg rd));
-  | 1,4 -> Ast.Alu2(XOR,Reg(disas_reg rs), Reg(disas_reg rd));
-  | 1,5 -> Ast.Alu2(MUL,Reg(disas_reg rs), Reg(disas_reg rd));
-  | 1,6 -> Ast.Alu2(SAR,Reg(disas_reg rs), Reg(disas_reg rd));
-  | 1,7 -> Ast.Alu2(SAL,Reg(disas_reg rs), Reg(disas_reg rd));
-  | 1,8 -> Ast.Alu2(SHR,Reg(disas_reg rs), Reg(disas_reg rd));
-  | 2,1 -> Ast.Move2(MOV,Reg(disas_reg rs), Reg(disas_reg rd));
-  | 3,1 -> Ast.Move2(MOV,EaS(disas_reg rs), Reg(disas_reg rd));
-  | 3,9 -> Ast.Move2(MOV,Reg(disas_reg rd), EaS(disas_reg rs));
+  | 0,0 -> Ast.Ctl1(RET,Reg(disas_reg rs))
+  | 0,1 -> Ast.Ctl0(SYSCALL)
+  | 1,0 -> Ast.Alu2(ADD,Reg(disas_reg rs), Reg(disas_reg rd))
+  | 1,1 -> Ast.Alu2(SUB,Reg(disas_reg rs), Reg(disas_reg rd))
+  | 1,2 -> Ast.Alu2(AND,Reg(disas_reg rs), Reg(disas_reg rd))
+  | 1,3 -> Ast.Alu2(OR,Reg(disas_reg rs), Reg(disas_reg rd))
+  | 1,4 -> Ast.Alu2(XOR,Reg(disas_reg rs), Reg(disas_reg rd))
+  | 1,5 -> Ast.Alu2(MUL,Reg(disas_reg rs), Reg(disas_reg rd))
+  | 1,6 -> Ast.Alu2(SAR,Reg(disas_reg rs), Reg(disas_reg rd))
+  | 1,7 -> Ast.Alu2(SAL,Reg(disas_reg rs), Reg(disas_reg rd))
+  | 1,8 -> Ast.Alu2(SHR,Reg(disas_reg rs), Reg(disas_reg rd))
+  | 2,1 -> Ast.Move2(MOV,Reg(disas_reg rs), Reg(disas_reg rd))
+  | 3,1 -> Ast.Move2(MOV,EaS(disas_reg rs), Reg(disas_reg rd))
+  | 3,9 -> Ast.Move2(MOV,Reg(disas_reg rd), EaS(disas_reg rs))
   | 4,_ | 5,_ | 6,_ | 7,_ -> begin (* instructions with 2 bytes + 1 immediate *)
       let imm = fetch_imm_from_offs state 2 in
       match hi,lo with
@@ -489,8 +488,18 @@ let run_inst perf state =
           if state.show then Printf.printf "\nTerminating. Return to address %Lx\n" ret_addr
         end
     end
-  | 0,1 -> model_mov_reg perf state rd rs; wr_reg state rd (perform_input rs)
-  | 0,2 -> model_nop perf state; terminate_output state; perform_output rd state.regs.(rs)
+  | 0,1 -> begin
+             if state.regs.(0) = Int64.zero then begin
+               model_alu_imm perf state 0;
+               wr_reg state 0 (perform_input 0)
+             end else if state.regs.(0) = Int64.one then begin
+               model_alu_imm perf state 0;
+               wr_reg state 0 (perform_input 1)
+             end else if state.regs.(0) = Int64.of_int 2 then begin
+               model_nop perf state; terminate_output state; perform_output 0 state.regs.(1)
+             end else
+               raise (UnknownInstructionAt (Int64.to_int state.ip))
+           end
   | 1,0 -> model_alu_reg perf state rd rs; wr_reg state rd (Int64.add state.regs.(rd) state.regs.(rs))
   | 1,1 -> model_alu_reg perf state rd rs; wr_reg state rd (Int64.sub state.regs.(rd) state.regs.(rs))
   | 1,2 -> model_alu_reg perf state rd rs; wr_reg state rd (Int64.logand state.regs.(rd) state.regs.(rs))

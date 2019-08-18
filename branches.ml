@@ -78,7 +78,10 @@ let rec elim_loop env lines flag_setter =
       | Alu2(_)                        -> line :: (elim_loop env other_lines (Chosen insn))
       | Ctl0(RET) | Ctl1(CALL,_)       -> line :: (elim_loop env other_lines Unknown)
       | Ctl1(JMP,EaD(target)) -> begin
-          line :: (elim_loop env other_lines Unknown)
+          if target.[0] = '.' then
+            line :: (elim_loop env other_lines Unknown)
+          else
+            [Error ("Cannot handle jmp to function (tail-call?)", (Printer.print_insn insn))]
         end
       | Ctl1(Jcc(_),EaD(target)) -> begin
           (rewrite_bcc insn flag_setter) :: (elim_loop env other_lines flag_setter)

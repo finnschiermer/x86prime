@@ -53,7 +53,7 @@ You can write one yourself. Or generate one from a program written in "C"
 using a C-compiler.
 
 ~~~
-> gcc -S -Og my_program.c
+> gcc -S -Os -fno-optimize-sibling-calls my_program.c
 ~~~
 
 ## Translating x86 into prime (x86prime)
@@ -113,7 +113,10 @@ The translation from x86 to prime is not perfect.
 
  * When gcc optimizes heavily ("-O2, -O3"), the code patterns generated will not
    be translated correctly. In most cases primify will stop with an exception. 
-   We believe "-Og" to be working reasonably well, so stick to that.
+   We believe "-Os" to be working reasonably well, so stick to that.
+
+ * Tail-call optimization will result in code, which cannot be correctly translated
+   into "prime", worse: this currently goes undetected - to disable it use "-fno-optimize-sibling-calls"
 
  * When gcc needs to use almost all registers in a function, translation will either fail
    or just be incorrect.

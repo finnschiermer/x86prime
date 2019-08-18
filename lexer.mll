@@ -49,6 +49,7 @@ let regs64 = "%rax" | "%rbx" | "%rcx" | "%rdx" | "%rbp" | "%rsi" | "%rdi" | "%rs
 
 rule read = parse
 | ws+       { read lexbuf  }
+| ".align\t16, 0x90" { read lexbuf }
 | ".text"   { DIR(".text") }
 | ".type"   { TYPE }
 | "@function" { FUNCTION }

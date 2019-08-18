@@ -1,17 +1,17 @@
 
-inline long read_long() {
+long read_long() {
   long result;
   asm volatile ("movq $0,%%rax\n\tsyscall" : "=a" (result));
   return result;
 }
 
-inline long gen_random() {
+long gen_random() {
   long result;
   asm volatile ("movq $1,%%rax\n\tsyscall" : "=a" (result));
   return result;
 }
 
-inline void write_long(long value) {
+void write_long(long value) {
   asm volatile ("movq $2,%%rax\n\tsyscall" : : "b" (value) : "rax");
 }
 

@@ -89,9 +89,15 @@ let asm_sh sh =
   | _ -> "?"
 
 let asm_mem env m =
-  match List.assoc_opt m env with
-  | Some v -> reverse_string v
-  | None -> "????????"
+  try (* if it's a numeric literal, use it directly -- if not, try to resolve it from the environment *)
+    let ii = int_of_string m in
+    if ii < 0 then reverse_string (Printf.sprintf "%08x" (0x100000000 + ii))
+    else reverse_string (Printf.sprintf "%08x" ii)
+  with Failure _ -> begin
+    match List.assoc_opt m env with
+    | Some v -> reverse_string v
+    | None -> "????????"
+  end
 
 let asm_imm env i = 
   try

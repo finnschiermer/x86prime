@@ -1,18 +1,17 @@
 
 long read_long() {
-  long result;
-  asm volatile ("movq $0,%%rax\n\tsyscall" : "=a" (result));
-  return result;
+  long read_addr = 0x10000000ULL;
+  return * (volatile long *) read_addr;
 }
 
 long gen_random() {
-  long result;
-  asm volatile ("movq $1,%%rax\n\tsyscall" : "=a" (result));
-  return result;
+  long read_addr = 0x10000001ULL;
+  return * (volatile long *) read_addr;
 }
 
 void write_long(long value) {
-  asm volatile ("movq $2,%%rax\n\tsyscall" : : "b" (value) : "rax");
+  long write_addr = 0x10000002ULL;
+  * (volatile long *) write_addr = value;
 }
 
 long* cur_allocator;

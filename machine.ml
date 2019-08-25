@@ -202,7 +202,7 @@ let reg_name reg =
 
 let log_ip state =
   match state.tracefile with
-  | Some(channel) -> Printf.fprintf channel "I %x %Lx\n" 0 state.ip
+  | Some(channel) -> Printf.fprintf channel "P %x %Lx\n" 0 state.ip
   | None -> ()
 
 let wr_reg state reg value =
@@ -217,17 +217,49 @@ let wr_reg state reg value =
   end;
   state.regs.(reg) <- value
 
+let is_io_area addr = (Int64.shift_right addr 28) = Int64.one
+
+let perform_output port value = 
+  if port = 2 then Printf.printf "%016Lx " value
+  else raise (UnknownPort port)
+
+let perform_input port =
+  if port = 0 then Int64.of_int (read_int ())
+  else if port = 1 then Random.int64 Int64.max_int
+  else raise (UnknownPort port)
+
+let rd_mem state (addr : Int64.t) =
+  if is_io_area addr then
+    let port = (Int64.to_int addr) land 0x0ff in
+    let value = perform_input port in
+    begin
+      match state.tracefile with
+      | Some(channel) -> Printf.fprintf channel "I %Lx %Lx\n" addr value
+      | None -> ()
+    end;
+    value
+  else
+    Memory.read_quad state.mem addr
+
 let wr_mem state addr value =
-  if state.show then begin
+  if is_io_area addr then begin
+    let port = (Int64.to_int addr) land 0x0ff in
+    perform_output port value;
+    match state.tracefile with
+    | Some(channel) -> Printf.fprintf channel "O %Lx %Lx\n" addr value
+    | None -> ()
+  end else begin
+    if state.show then begin
       align_output state;
       Printf.printf "Memory[ 0x%Lx ] <- 0x%Lx" addr value
     end;
-  begin
-    match state.tracefile with
-    | Some(channel) -> Printf.fprintf channel "M %Lx %Lx\n" addr value
-    | None -> ()
-  end;
-  Memory.write_quad state.mem addr value
+    begin
+      match state.tracefile with
+      | Some(channel) -> Printf.fprintf channel "M %Lx %Lx\n" addr value
+      | None -> ()
+    end;
+    Memory.write_quad state.mem addr value
+  end
 
 let set_ip state ip =
   if state.show then Printf.printf "Starting execution from address 0x%X\n" ip;
@@ -336,15 +368,6 @@ let disas_inst state =
   | _ -> raise (UnknownInstructionAt (Int64.to_int state.ip))
 
 let terminate_output state = if state.show then align_output state
-
-let perform_output port value = 
-  if port = 0 then Printf.printf "%016Lx " value
-  else raise (UnknownPort port)
-
-let perform_input port =
-  if port = 0 then Int64.of_int (read_int ())
-  else if port = 1 then Random.int64 Int64.max_int
-  else raise (UnknownPort port)
 
 let model_fetch_decode perf state =
   let start = Resource.acquire perf.fetch_start 0 in
@@ -506,13 +529,13 @@ let run_inst perf state =
   | 1,3 -> model_alu_reg perf state rd rs; wr_reg state rd (Int64.logor state.regs.(rd) state.regs.(rs))
   | 1,4 -> model_alu_reg perf state rd rs; wr_reg state rd (Int64.logxor state.regs.(rd) state.regs.(rs))
   | 1,5 -> model_mul_reg perf state rd rs; wr_reg state rd (Int64.mul state.regs.(rd) state.regs.(rs))
-  | 1,6 -> model_mul_reg perf state rd rs; wr_reg state rd (Int64.shift_right state.regs.(rd) (Int64.to_int state.regs.(rs)))
-  | 1,7 -> model_mul_reg perf state rd rs; wr_reg state rd (Int64.shift_left state.regs.(rd) (Int64.to_int state.regs.(rs)))
-  | 1,8 -> model_mul_reg perf state rd rs; wr_reg state rd (Int64.shift_right_logical state.regs.(rd) (Int64.to_int state.regs.(rs)))
+  | 1,6 -> model_alu_reg perf state rd rs; wr_reg state rd (Int64.shift_right state.regs.(rd) (Int64.to_int state.regs.(rs)))
+  | 1,7 -> model_alu_reg perf state rd rs; wr_reg state rd (Int64.shift_left state.regs.(rd) (Int64.to_int state.regs.(rs)))
+  | 1,8 -> model_alu_reg perf state rd rs; wr_reg state rd (Int64.shift_right_logical state.regs.(rd) (Int64.to_int state.regs.(rs)))
   | 2,1 -> model_mov_reg perf state rs rd; wr_reg state rd state.regs.(rs)
   | 3,1 -> begin
       model_load perf state rd rs state.regs.(rs);
-      wr_reg state rd (Memory.read_quad state.mem state.regs.(rs))
+      wr_reg state rd (rd_mem state state.regs.(rs))
     end
   | 3,9 -> begin
       model_store perf state rd rs state.regs.(rs);
@@ -543,14 +566,14 @@ let run_inst perf state =
       | 5,3 -> model_alu_imm perf state rd; wr_reg state rd (Int64.logor state.regs.(rd) qimm)
       | 5,4 -> model_alu_imm perf state rd; wr_reg state rd (Int64.logxor state.regs.(rd) qimm)
       | 5,5 -> model_mul_imm perf state rd; wr_reg state rd (Int64.mul state.regs.(rd) qimm)
-      | 5,6 -> model_mul_imm perf state rd; wr_reg state rd (Int64.shift_right state.regs.(rd) imm)
-      | 5,7 -> model_mul_imm perf state rd; wr_reg state rd (Int64.shift_left state.regs.(rd) imm)
-      | 5,8 -> model_mul_imm perf state rd; wr_reg state rd (Int64.shift_right_logical state.regs.(rd) imm)
+      | 5,6 -> model_alu_imm perf state rd; wr_reg state rd (Int64.shift_right state.regs.(rd) imm)
+      | 5,7 -> model_alu_imm perf state rd; wr_reg state rd (Int64.shift_left state.regs.(rd) imm)
+      | 5,8 -> model_alu_imm perf state rd; wr_reg state rd (Int64.shift_right_logical state.regs.(rd) imm)
       | 6,4 -> model_mov_imm perf state rd; wr_reg state rd qimm
       | 7,5 -> begin
           let a = Int64.add qimm state.regs.(rs) in
           model_load perf state rd rs a;
-          wr_reg state rd (Memory.read_quad state.mem a)
+          wr_reg state rd (rd_mem state a)
         end
       | 7,0xD -> begin
           let a = Int64.add qimm state.regs.(rs) in

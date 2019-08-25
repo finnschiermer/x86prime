@@ -4,7 +4,6 @@ x86prime instructions and encoding
 Encoding:                                   Assembler           Operation
 
 00000000 0000ssss                           ret s               return from function call
-00000001 00000000                           syscall             system call (I/O etc)
 0001aaaa ddddssss                           op s,d              reg/reg arithmetic (see below)
 00100001 ddddssss                           movq s,d            reg->reg copy
 00110001 ddddssss                           movq (s),d          load (memory -> reg copy)

@@ -124,7 +124,7 @@ rule read = parse
 | "callq"    { if !translating then CTL1(CALL) else CTL2(CALL) }
 | "pushq"    { PUPO(PUSH) }
 | "popq"     { PUPO(POP) }
-| "imulq"   { ALU2(MUL) }
+| "imulq"   { MUL1 }
 | "mulq"   { ALU2(MUL) }
 | ".quad"   { QUAD }
 | ".comm"   { COMM }

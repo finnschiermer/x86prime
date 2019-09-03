@@ -23,6 +23,7 @@
 %token FUNCTION
 %token ENDFUNCTION
 %token OBJECT
+%token MUL1
 %token FUN_START
 %token DOLLAR
 %token <string> DIR
@@ -50,6 +51,7 @@ instruction:
  | INC v1 = arg                      { Ast.Alu2(Ast.ADD, Imm("1"), v1) }
  | DEC v1 = arg                      { Ast.Alu2(Ast.SUB, Imm("1"), v1) }
  | i = ALU2 v1 = arg COMMA v2 = arg  { Ast.Alu2(i, v1, v2) }
+ | MUL1 v1 = arg                     { Ast.Alu2(MUL, v1, Ast.Reg("%rax")) }
  | i = MOVE v1 = arg COMMA v2 = arg  { Ast.Move2(i, v1, v2) }
  | i = PUPO v1 = arg                 { Ast.PuPo(i, v1) }
  | i = CTL3 DOLLAR v1 = NUM COMMA v2 = REG COMMA t = ID  { Ast.Ctl3(i, Ast.Imm(v1), Ast.Reg(v2), Ast.EaD(t)) }

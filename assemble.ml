@@ -178,7 +178,7 @@ let assemble_line env line : assem =
 
         (* Compare and branch with immediate and target: 10 byte encoding: *)
       | Ctl3(CBcc(cond),Imm(i),Reg(rd),EaD(m)) ->  gen ["F"; asm_cond cond; asm_reg rd; "0"; asm_imm env i; asm_mem env m]
-
+      | Alu2(CMOVcc(_),_,_) -> raise (Error_during_assembly "conditional move is not a valid prime insn")
       | Quad(q) -> gen [asm_imm64 env q]
       | Comm(nm,sz,aln) -> gen_zeros sz
       | Label(lab) -> gen [""]
@@ -197,7 +197,7 @@ let should_translate line =
 let print_assembly_line oc line =
   match line with
   | Assembly(a,s,i) -> Printf.fprintf oc "%8s : %-20s  #  " a s; (Printer.line_printer oc (Ok i))
-  | Source(i) -> Printf.fprintf oc "<**>                #  "; (Printer.line_printer oc (Ok i))
+  | Source(i) -> Printf.fprintf oc "NOT PRIME:                #  "; (Printer.line_printer oc (Ok i))
 
 let print_assembly oc lines =
   List.iter (print_assembly_line oc) lines

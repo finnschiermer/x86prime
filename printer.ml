@@ -30,6 +30,7 @@ let print_opc opc =
   | RET -> "ret"
   | Jcc(cc) -> Printf.sprintf "j%s" (print_cond cc)
   | CBcc(cc) -> Printf.sprintf "cb%s" (print_cond cc)
+  | CMOVcc(cc) -> Printf.sprintf "cmov%s" (print_cond cc)
   | JMP -> "jmp"
   | PUSH -> "push"
   | POP -> "pop"
@@ -58,8 +59,8 @@ let print_insn insn =
   | Alu2(opc,a,b)
   | Move2(opc,a,b) ->  Printf.sprintf "    %s %s, %s" (print_opc opc) (print_arg a) (print_arg b)
   | PuPo(opc,a) -> Printf.sprintf "    %s %s" (print_opc opc) (print_arg a)
-  | Ctl3(opc,a,b,c) -> Printf.sprintf "    %s %s,%s,%s" (print_opc opc) (print_arg a) (print_arg b) (print_arg c)
-  | Ctl2(opc,a,b) -> Printf.sprintf "    %s %s,%s" (print_opc opc) (print_arg a) (print_arg b)
+  | Ctl3(opc,a,b,c) -> Printf.sprintf "    %s %s, %s, %s" (print_opc opc) (print_arg a) (print_arg b) (print_arg c)
+  | Ctl2(opc,a,b) -> Printf.sprintf "    %s %s, %s" (print_opc opc) (print_arg a) (print_arg b)
   | Ctl1(opc,a) -> Printf.sprintf "    %s %s" (print_opc opc) (print_arg a)
   | Ctl0(opc) -> Printf.sprintf "    %s" (print_opc opc)
   | Quad(d) -> Printf.sprintf "    .quad %s" d

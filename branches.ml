@@ -63,6 +63,13 @@ let rec fill_env_loop env lines (flag_setter : generator_info) =
   | insn :: others -> fill_env_loop env others flag_setter
   | [] -> env
 
+let labnum = ref 0
+
+let next_lab_name _ =
+  let num = !labnum in
+  labnum := 1 + num;
+  Printf.sprintf ".cmov_target_%d" num
+
 let rec elim_loop env lines flag_setter =
   let open Ast in
   match lines with 
@@ -74,6 +81,12 @@ let rec elim_loop env lines flag_setter =
             line :: (elim_loop env other_lines Unknown)
           else
             line :: (elim_loop env other_lines flag_setter)
+        end
+      | Alu2(CMOVcc(cc),s,d) -> begin
+          let labname = next_lab_name () in
+          let lab = Label(labname) in
+          let lines = Ok(Ctl1(Jcc(Ast.rev_cond cc),EaD(labname))) :: Ok(Move2(MOV,s,d)) :: Ok(lab) :: other_lines in
+          (elim_loop env lines flag_setter)
         end
       | Alu2(_)                        -> line :: (elim_loop env other_lines (Chosen insn))
       | Ctl0(RET) | Ctl1(CALL,_)       -> line :: (elim_loop env other_lines Unknown)

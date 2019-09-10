@@ -35,8 +35,10 @@ let print_opc opc =
   | PUSH -> "push"
   | POP -> "pop"
   | CALL -> "call"
-  | MUL -> "imulq"
+  | MUL -> "mulq"
+  | IMUL -> "imulq"
   | SYSCALL -> "syscall"
+  | MOVABSQ -> "movabsq"
 ;;
 
 let print_arg arg =

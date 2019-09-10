@@ -321,6 +321,7 @@ let disas_inst state =
   | 1,6 -> Ast.Alu2(SAR,Reg(disas_reg rs), Reg(disas_reg rd))
   | 1,7 -> Ast.Alu2(SAL,Reg(disas_reg rs), Reg(disas_reg rd))
   | 1,8 -> Ast.Alu2(SHR,Reg(disas_reg rs), Reg(disas_reg rd))
+  | 1,9 -> Ast.Alu2(IMUL,Reg(disas_reg rs), Reg(disas_reg rd))
   | 2,1 -> Ast.Move2(MOV,Reg(disas_reg rs), Reg(disas_reg rd))
   | 3,1 -> Ast.Move2(MOV,EaS(disas_reg rs), Reg(disas_reg rd))
   | 3,9 -> Ast.Move2(MOV,Reg(disas_reg rd), EaS(disas_reg rs))
@@ -339,6 +340,7 @@ let disas_inst state =
       | 5,6 -> Ast.Alu2(SAR,Imm(disas_imm imm),Reg(disas_reg rd))
       | 5,7 -> Ast.Alu2(SAL,Imm(disas_imm imm),Reg(disas_reg rd))
       | 5,8 -> Ast.Alu2(SHR,Imm(disas_imm imm),Reg(disas_reg rd))
+      | 5,9 -> Ast.Alu2(IMUL,Imm(disas_imm imm),Reg(disas_reg rd))
       | 6,4 -> Ast.Move2(MOV,Imm(disas_imm imm),Reg(disas_reg rd))
       | 7,5 -> Ast.Move2(MOV,EaDS(disas_imm imm,disas_reg rs),Reg(disas_reg rd))
       | 7,0xD ->Ast.Move2(MOV,Reg(disas_reg rd), EaDS(disas_imm imm,disas_reg rs))
@@ -492,6 +494,20 @@ let model_load perf state rd rs addr =
 
 let model_load_imm perf state rd rs = model_load perf state rd perf.reg_ready.(rs)
 
+
+let unsigned_mul a b =
+  if a < Int64.zero then
+    if b < Int64.zero then
+      Int64.mul (Int64.neg a) (Int64.neg b)
+    else
+      Int64.neg (Int64.mul (Int64.neg a) b)
+  else 
+    if b < Int64.zero then
+      Int64.neg (Int64.mul a (Int64.neg b))
+    else
+      Int64.mul a b
+
+
 let run_inst perf state =
   log_ip state;
   if state.show then state.disas <- Some(disas_inst state);
@@ -528,10 +544,11 @@ let run_inst perf state =
   | 1,2 -> model_alu_reg perf state rd rs; wr_reg state rd (Int64.logand state.regs.(rd) state.regs.(rs))
   | 1,3 -> model_alu_reg perf state rd rs; wr_reg state rd (Int64.logor state.regs.(rd) state.regs.(rs))
   | 1,4 -> model_alu_reg perf state rd rs; wr_reg state rd (Int64.logxor state.regs.(rd) state.regs.(rs))
-  | 1,5 -> model_mul_reg perf state rd rs; wr_reg state rd (Int64.mul state.regs.(rd) state.regs.(rs))
+  | 1,5 -> model_mul_reg perf state rd rs; wr_reg state rd (unsigned_mul state.regs.(rd) state.regs.(rs))
   | 1,6 -> model_alu_reg perf state rd rs; wr_reg state rd (Int64.shift_right state.regs.(rd) (Int64.to_int state.regs.(rs)))
   | 1,7 -> model_alu_reg perf state rd rs; wr_reg state rd (Int64.shift_left state.regs.(rd) (Int64.to_int state.regs.(rs)))
   | 1,8 -> model_alu_reg perf state rd rs; wr_reg state rd (Int64.shift_right_logical state.regs.(rd) (Int64.to_int state.regs.(rs)))
+  | 1,9 -> model_mul_reg perf state rd rs; wr_reg state rd (Int64.mul state.regs.(rd) state.regs.(rs))
   | 2,1 -> model_mov_reg perf state rs rd; wr_reg state rd state.regs.(rs)
   | 3,1 -> begin
       model_load perf state rd rs state.regs.(rs);
@@ -565,10 +582,11 @@ let run_inst perf state =
       | 5,2 -> model_alu_imm perf state rd; wr_reg state rd (Int64.logand state.regs.(rd) qimm)
       | 5,3 -> model_alu_imm perf state rd; wr_reg state rd (Int64.logor state.regs.(rd) qimm)
       | 5,4 -> model_alu_imm perf state rd; wr_reg state rd (Int64.logxor state.regs.(rd) qimm)
-      | 5,5 -> model_mul_imm perf state rd; wr_reg state rd (Int64.mul state.regs.(rd) qimm)
+      | 5,5 -> model_mul_imm perf state rd; wr_reg state rd (unsigned_mul state.regs.(rd) qimm)
       | 5,6 -> model_alu_imm perf state rd; wr_reg state rd (Int64.shift_right state.regs.(rd) imm)
       | 5,7 -> model_alu_imm perf state rd; wr_reg state rd (Int64.shift_left state.regs.(rd) imm)
       | 5,8 -> model_alu_imm perf state rd; wr_reg state rd (Int64.shift_right_logical state.regs.(rd) imm)
+      | 5,9 -> model_mul_imm perf state rd; wr_reg state rd (Int64.mul state.regs.(rd) qimm)
       | 6,4 -> model_mov_imm perf state rd; wr_reg state rd qimm
       | 7,5 -> begin
           let a = Int64.add qimm state.regs.(rs) in

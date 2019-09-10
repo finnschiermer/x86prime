@@ -67,6 +67,7 @@ rule read = parse
 | regs64    { REG(get lexbuf) }
 | regs32    { REG(get lexbuf) }
 | regs8     { REG(get lexbuf) }
+| "movabsq" { ALU2(MOVABSQ) }
 | "leaq"    { ALU2(LEA)   }
 | "addq"     { ALU2(ADD)   }
 | "subq"     { ALU2(SUB)   }
@@ -138,7 +139,7 @@ rule read = parse
 | "callq"    { if !translating then CTL1(CALL) else CTL2(CALL) }
 | "pushq"    { PUPO(PUSH) }
 | "popq"     { PUPO(POP) }
-| "imulq"   { MUL1 }
+| "imulq"   { ALU2(IMUL) }
 | "mulq"   { ALU2(MUL) }
 | ".quad"   { QUAD }
 | ".comm"   { COMM }

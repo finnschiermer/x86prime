@@ -88,7 +88,22 @@ let allocate_reg reg_list =
   done;
   !result
 
+let rec txl_instructions lines =
+  let open Ast in
+  match lines with
+  | Ok(Alu2(MOVABSQ,Imm(a),b)) :: tl -> begin
+      let v : Int64.t = Int64.of_string a in
+      let lo : Int64.t = Int64.of_int32 (Int64.to_int32 v) in
+      let rest = Int64.sub v lo in
+      let hi = Int64.shift_right rest 32 in
+      Ok(Alu2(MOV,Imm(Int64.to_string hi), b)) :: Ok(Alu2(SAL,Imm("32"),b))
+         :: Ok(Alu2(ADD,Imm(Int64.to_string lo), b)) :: txl_instructions tl
+    end
+  | insn :: tl -> insn :: (txl_instructions tl)
+  | [] -> []
+
 let translate_body lines =
+  let lines = txl_instructions lines in
   let lines = Stack.elim_stack lines in
   Branches.elim_flags (Load_store.convert lines)
 

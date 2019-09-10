@@ -36,10 +36,11 @@ aaaa indicates the kind of arithmetic operation. All operate on full 64 bits:
 0010 and  bitwise and
 0011 or   bitwise or
 0100 xor  bitwise xor
-0101 mul  multiplication
+0101 mul  unsigned multiplication
 0110 sar  shift arithmetic right (preserve topmost bit)
 0111 sal  shift arithmetic left (zero into lsb, do not preserve topmost bit)
 1000 shr  shift (logical) right (zero into topmost bit)
+1001 imul signed multiplication
 
 d,s and z are registers:
 

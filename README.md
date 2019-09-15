@@ -106,6 +106,10 @@ You request a tracefile by the "-tracefile" option:
 > ./prun my_program.s my_start_function -tracefile prog.trc
 ~~~
 
+The subdirectory "examples" includes an example C program (bubblesort.c)
+which can be used as introduction to the tools. Note that it will silently
+input an integer from the keyboard - if running it seems to just hang, try
+providing a small number and press enter.
 
 ## Limitations to cross-assembling
 

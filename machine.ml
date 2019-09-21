@@ -330,7 +330,7 @@ let disas_inst state =
       match hi,lo with
       | 4,0xE -> Ast.Ctl2(CALL,EaD(disas_mem imm),Reg(disas_reg rd))
       | 4,0xF -> Ast.Ctl1(JMP,EaD(disas_mem imm))
-      | 4,_ -> Ast.Ctl3(CBcc(disas_cond lo),Reg(disas_reg rd),Reg(disas_reg rs),EaD(disas_mem imm));
+      | 4,_ -> Ast.Ctl3(CBcc(disas_cond lo),Reg(disas_reg rs),Reg(disas_reg rd),EaD(disas_mem imm));
       | 5,0 -> Ast.Alu2(ADD,Imm(disas_imm imm),Reg(disas_reg rd))
       | 5,1 -> Ast.Alu2(SUB,Imm(disas_imm imm),Reg(disas_reg rd))
       | 5,2 -> Ast.Alu2(AND,Imm(disas_imm imm),Reg(disas_reg rd))
@@ -572,11 +572,13 @@ let run_inst perf state =
           model_jmp perf state;
           state.ip <- qimm (* jmp *)
         end
-      | 4,_ -> terminate_output state;
-               let taken = eval_condition lo state.regs.(rd) state.regs.(rs) in
-               let ops_ready = max perf.reg_ready.(rd) perf.reg_ready.(rs) in
-               model_cond_branch perf state (Int64.to_int state.ip) imm taken ops_ready;
-               if taken then state.ip <- qimm
+      | 4,_ -> begin
+          terminate_output state;
+          let taken = eval_condition lo state.regs.(rd) state.regs.(rs) in
+          let ops_ready = max perf.reg_ready.(rd) perf.reg_ready.(rs) in
+          model_cond_branch perf state (Int64.to_int state.ip) imm taken ops_ready;
+          if taken then state.ip <- qimm
+        end
       | 5,0 -> model_alu_imm perf state rd; wr_reg state rd (Int64.add state.regs.(rd) qimm)
       | 5,1 -> model_alu_imm perf state rd; wr_reg state rd (Int64.sub state.regs.(rd) qimm)
       | 5,2 -> model_alu_imm perf state rd; wr_reg state rd (Int64.logand state.regs.(rd) qimm)

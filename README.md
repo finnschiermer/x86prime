@@ -18,10 +18,15 @@ to find which version you have. If you have something before 4.05.0, you need
 to upgrade. Latest version is 4.07.0. To upgrade do:
 ~~~
 > opam switch 4.07.0
-[at this point you may be asked to run "eval `opam config env`" - do it]
+[at this point you may be asked to run "eval 'opam config env'" - do it]
 ~~~
+You may have to use "opam switch create" instead of just "opam switch"
+
 On some systems, this is not enough, and we recommend that you exit your shell,
 then restart it before proceeding
+
+While OCaml 4.05 works, it produces a lot of warnings. If you'd rather have
+a clean build process, upgrade to 4.07.0 as described above.
 ~~~
 > opam install menhir ocamlbuild
 ~~~

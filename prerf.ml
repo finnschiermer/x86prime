@@ -2,6 +2,7 @@ let machine = ref (Machine.create ())
 let labels = ref None
 let program_name = ref ""
 let tracefile_name = ref ""
+let args = ref []
 let entry_name = ref ""
 let do_show = ref false
 let do_print_config = ref false
@@ -186,12 +187,17 @@ let cmd_spec = [
     ("-mem", Arg.Set_string set_mem, "magic/real select base memory configuration");
     ("-print_config", Arg.Set do_print_config, "print detailed performance model configuration")
   ]
-
+  
 let set_names s = 
   if !program_name = "" then program_name := s
   else if !entry_name = "" then entry_name := s
-  else raise (InvalidArgument "Wrong arguments. Must be <hex-file> <start-label>")
-  
+  else begin
+    let arg = Int64.of_string_opt s in
+    match arg with
+      | Some(a) -> args := !args @ [a]
+      | None -> raise (InvalidArgument "Wrong arguments. Must be <hex-file> <start-label> <args2program....>")
+  end
+
 let get_symbols fname =
   let ic = open_in fname in
   let ok = ref true in
@@ -231,6 +237,7 @@ let () =
     if !do_show then Machine.set_show !machine;
     if !entry_name <> "" then begin
       labels := Some (get_symbols ((Filename.chop_suffix !program_name ".hex") ^ ".sym"));
+      Machine.set_args !machine !args;
       run !entry_name
     end else raise (InvalidArgument "no valid start-label")
   end

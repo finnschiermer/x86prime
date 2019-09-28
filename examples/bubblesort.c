@@ -30,9 +30,22 @@ void print_array(long num_elem, long array[]) {
 
 }
 
+// main program using I/O
 void run() {
   init_allocator();
   long num_entries = read_long();
+  long* p = get_random_array(num_entries);
+  sort(num_entries, p);
+  print_array(num_entries, p);
+}
+
+// main program using command line argument
+void run2() {
+  init_allocator();
+  // we could check number of arguments... 
+  // but we have no way of reporting an error anyway.
+  // so let's just assume it's there:
+  long num_entries = get_argv()[0];
   long* p = get_random_array(num_entries);
   sort(num_entries, p);
   print_array(num_entries, p);

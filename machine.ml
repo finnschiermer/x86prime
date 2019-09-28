@@ -46,6 +46,15 @@ let set_show state = state.show <- true
 
 let set_tracefile state channel = state.tracefile <- Some channel
 
+let set_args state arglist =
+  let wrt_ptr = ref (Int64.of_int 0x20000000) in
+  Memory.write_quad state.mem !wrt_ptr (Int64.of_int (List.length arglist));
+  let wrt_arg arg = begin
+    wrt_ptr := Int64.add !wrt_ptr (Int64.of_int 8);
+    Memory.write_quad state.mem !wrt_ptr arg
+  end in
+  List.iter wrt_arg arglist
+
 exception Unknown_digit of char
 
 let hex_to_int c =

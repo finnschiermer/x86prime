@@ -21,6 +21,7 @@ type perf = {
 val create : unit -> state
 val set_show : state -> unit
 val set_tracefile : state -> out_channel -> unit
+val set_args : state -> int64 list -> unit
 val init : (int * string) list -> state
 val set_ip : state -> int -> unit
 val run : perf -> state -> unit

@@ -17,5 +17,15 @@ void write_long(long value) {
   * (volatile long *) write_addr = value;
 }
 
+// We also support passing an argument vector of quads
+long get_argc() {
+  long read_addr = 0x20000000ULL;
+  return * (volatile long *) read_addr;
+}
+
+long* get_argv() {
+  long read_addr = 0x20000008ULL;
+  return (long*) read_addr;
+}
 
 

@@ -40,8 +40,10 @@ The script "buildall.sh" will build 4 tools:
  * prun, a tool which reads hex files and runs them
  * prerf, like prun, but collect performance statistics
 
+The tools will be linked from the "bin" subdirectory.
+
 ~~~
-> ./builall.sh
+> ./buildall.sh
 ~~~
 
 If by accident you have built part of the program using an old version, you
@@ -63,11 +65,11 @@ using a C-compiler.
 
 ## Translating x86 into prime (x86prime)
 
-The "./primify" program will translate an x86 assembler source file into
+The "primify" program will translate an x86 assembler source file into
 correspondingly named ".prime" files.
 
 ~~~
-> ./primify my_program.s
+> bin/primify my_program.s
 ~~~
 
 This results in a new file, "my_program.prime"
@@ -78,7 +80,7 @@ The simulators cannot directly read the symbolic prime assembler. You need to
 assemble it into hex-format. Use
 
 ~~~
-> ./prasm my_program.prime
+> bin/prasm my_program.prime
 ~~~
 
 This produces "my_program.hex", which can be inspected to learn how the prime
@@ -89,10 +91,10 @@ the simulator to allow you to pick which part of the code to execute.
 
 ## Running
 
-Programs are simulated by "./prun"
+Programs are simulated by "prun"
 
 ~~~
-> ./prun my_program.hex my_start_function
+> bin/prun my_program.hex my_start_function
 ~~~
 
 Here, the label "my_start_function" must have been defined by the original ".prime"
@@ -108,13 +110,18 @@ A tracefile records all changes to memory and register made by your program.
 You request a tracefile by the "-tracefile" option:
 
 ~~~
-> ./prun my_program.s my_start_function -tracefile prog.trc
+> bin/prun my_program.s my_start_function -tracefile prog.trc
 ~~~
 
 The subdirectory "examples" includes an example C program (bubblesort.c)
-which can be used as introduction to the tools. Note that it will silently
-input an integer from the keyboard - if running it seems to just hang, try
-providing a small number and press enter.
+which can be used as introduction to the tools. It has 2 entry-points, "run"
+and "run2". If you use "run" it will silently input an integer from the keyboard.
+If running it seems to just hang, try providing a small number and press enter.
+If you use "run2", it will instead try to access any command line arguments.
+To pass command line arguments into the simulated program, just add them to 
+the command line after all the other arguments. The bubblesort.c program
+illustrates how the program can access the additional arguments, see the "run2"
+function.
 
 ## Limitations to cross-assembling
 

@@ -226,7 +226,10 @@ let wr_reg state reg value =
   end;
   state.regs.(reg) <- value
 
+let int64_two = Int64.of_int(2)
+
 let is_io_area addr = (Int64.shift_right addr 28) = Int64.one
+let is_argv_area addr = (Int64.shift_right addr 28) = int64_two
 
 let perform_output port value = 
   if port = 2 then Printf.printf "%016Lx " value
@@ -241,6 +244,14 @@ let rd_mem state (addr : Int64.t) =
   if is_io_area addr then
     let port = (Int64.to_int addr) land 0x0ff in
     let value = perform_input port in
+    begin
+      match state.tracefile with
+      | Some(channel) -> Printf.fprintf channel "I %Lx %Lx\n" addr value
+      | None -> ()
+    end;
+    value
+  else if is_argv_area addr then
+    let value = Memory.read_quad state.mem addr in
     begin
       match state.tracefile with
       | Some(channel) -> Printf.fprintf channel "I %Lx %Lx\n" addr value

@@ -18,13 +18,26 @@ type perf = {
     dec_lat : int
   }
 
+type event = Event of int * char
+
+type plotline = {
+    mutable iptr : int;
+    mutable ops : int list;
+    mutable ims : int list;
+    mutable events : event list;
+    mutable disasm : string;
+    mutable result : string;
+    mutable p_pos : int;
+  }
+
 type state = {
     mutable show : bool;
     mutable running : bool;
-    mutable p_pos : int;
     mutable disas : Ast.line option;
     mutable tracefile : out_channel option;
     mutable ip : Int64.t;
+    mutable message : string option;
+    plot : plotline;
     regs : registers;
     mem : Memory.t;
   }
@@ -33,14 +46,36 @@ let create () =
   let machine = { 
       show = false; 
       running = false;
-      p_pos = 0; 
       tracefile = None;
       disas = None;
-      ip = Int64.zero; 
+      ip = Int64.zero;
+      message = None;
+      plot = {
+          iptr = 0; ops = []; ims = []; events = []; disasm = ""; result = ""; p_pos = 0;
+      };
       regs = Array.make 16 Int64.zero; 
       mem = Memory.create () 
     } in
   machine
+
+let add_event line code time =
+  line.events <- line.events @ [Event(time, code)]
+
+let add_result line res = line.result <- Printf.sprintf "%-50s" res
+
+let print_plotline (line : plotline) =
+  let s = Printf.sprintf "%08x : " line.iptr in
+  let map_ops op = Printf.sprintf "%02x " op in
+  let map_imm imm = Printf.sprintf "%08x " imm in
+  let numlist = List.flatten [[s]; (List.map map_ops line.ops); (List.map map_imm line.ims)] in
+  let numstring = String.concat "" numlist in
+  let len_nums = String.length numstring in
+  let void = String.make (30 - len_nums) ' ' in
+  let map_event ev = match ev with Event(time,code) -> Printf.sprintf "%c: %d" code time in
+  let eventlist = List.map map_event line.events in
+  let eventstring = String.concat "  " eventlist in
+  let total = String.concat "" [numstring; void; line.disasm; line.result; eventstring] in
+  Printf.printf "\n%s" total
 
 let set_show state = state.show <- true
 
@@ -106,14 +141,17 @@ let _fetch state =
 
 let fetch state =
   let byte = _fetch state in
-  if state.show then Printf.printf "%02x " byte;
-  state.p_pos <- 3 + state.p_pos;
+  if state.show then state.plot.ops <- state.plot.ops @ [byte];
   byte
 
 let fetch_first state =
   let first_byte = _fetch state in
-  if state.show then Printf.printf "\n%08x : %02x " ((Int64.to_int state.ip) - 1) first_byte;
-  state.p_pos <- 3;
+  if state.show then begin
+    state.plot.iptr <- ((Int64.to_int state.ip) - 1);
+    state.plot.ops <- [first_byte];
+    state.plot.ims <- [];
+    state.plot.events <- []
+  end;
   first_byte
 
 let fetch_imm state =
@@ -122,8 +160,7 @@ let fetch_imm state =
   let c = _fetch state in
   let d = _fetch state in
   let imm =(((((d lsl 8) + c) lsl 8) + b) lsl 8) + a in
-  if state.show then Printf.printf "%08x " imm;
-  state.p_pos <- 9 + state.p_pos;
+  if state.show then state.plot.ims <- state.plot.ims @ [imm];
   imm
 
 let imm_to_qimm imm =
@@ -189,12 +226,8 @@ let disas_cond cond =
   | _ -> raise (UnimplementedCondition cond)
 
 let align_output state =
-  while state.p_pos < 30 do
-    Printf.printf " ";
-    state.p_pos <- 1 + state.p_pos
-  done;
   match state.disas with
-  | Some(d) -> Printf.printf "%-40s" (Printer.print_insn d)
+  | Some(d) -> state.plot.disasm <- (Printf.sprintf "%-40s" (Printer.print_insn d))
   | None -> ()
 
 let reg_name reg =
@@ -217,7 +250,7 @@ let log_ip state =
 let wr_reg state reg value =
   if state.show then begin
       align_output state;
-      Printf.printf "%s <- 0x%Lx" (reg_name reg) value;
+      add_result state.plot (Printf.sprintf "%s <- 0x%Lx" (reg_name reg) value);
     end;
   begin
     match state.tracefile with
@@ -264,6 +297,10 @@ let rd_mem state (addr : Int64.t) =
 let wr_mem state addr value =
   if is_io_area addr then begin
     let port = (Int64.to_int addr) land 0x0ff in
+    if state.show then begin
+      align_output state;
+      add_result state.plot (Printf.sprintf "Output <- %Lx" value)
+    end;
     perform_output port value;
     match state.tracefile with
     | Some(channel) -> Printf.fprintf channel "O %Lx %Lx\n" addr value
@@ -271,7 +308,7 @@ let wr_mem state addr value =
   end else begin
     if state.show then begin
       align_output state;
-      Printf.printf "Memory[ 0x%Lx ] <- 0x%Lx" addr value
+      add_result state.plot (Printf.sprintf "Memory[ 0x%Lx ] <- 0x%Lx" addr value)
     end;
     begin
       match state.tracefile with
@@ -398,6 +435,8 @@ let model_fetch_decode perf state =
   let rob_entry = Resource.acquire perf.rob (got_inst + perf.dec_lat) in
   Resource.use perf.fetch_start start (start + 1);
   Resource.use perf.fetch_decode_q start rob_entry;
+  add_event state.plot 'F' start;
+  add_event state.plot 'D' got_inst;
   rob_entry
  (* FIXME if in-order, we need to wait for the actual execution resource to be allocated *)
 
@@ -414,7 +453,9 @@ let model_return perf state rs =
     Resource.use_all perf.fetch_start (exec_start + 1);
   Resource.use perf.alu exec_start (exec_start + 1);
   Resource.use perf.retire time_retire (time_retire + 1);
-  Resource.use perf.rob rob_entry time_retire
+  Resource.use perf.rob rob_entry time_retire;
+  add_event state.plot 'B' exec_start;
+  add_event state.plot 'C' time_retire
 
 let model_call perf state rd addr =
   let rob_entry = model_fetch_decode perf state in
@@ -468,7 +509,9 @@ let model_compute perf state rd ops_ready latency =
   Resource.use perf.alu exec_start (exec_done);
   Resource.use perf.retire time_retire (time_retire + 1);
   Resource.use perf.rob rob_entry time_retire;
-  perf.reg_ready.(rd) <- exec_done
+  perf.reg_ready.(rd) <- exec_done;
+  add_event state.plot 'X' exec_start;
+  add_event state.plot 'C' time_retire
 
 let model_mov_imm perf state rd = model_compute perf state rd 0 1
 let model_leaq perf state rd ops_ready = model_compute perf state rd ops_ready 1
@@ -544,7 +587,8 @@ let run_inst perf state =
       if ret_addr <= Int64.zero then begin
           log_ip state; (* final IP value should be added to trace *)
           state.running <- false;
-          if state.show then Printf.printf "\nTerminating. Return to address %Lx\n" ret_addr
+          if state.show then 
+            state.message <- Some (Printf.sprintf "\nTerminating. Return to address %Lx\n" ret_addr)
         end
     end
   | 0,1 -> begin
@@ -654,7 +698,13 @@ let run_inst perf state =
 let run perf state =
   state.running <- true;
   while state.running && state.ip >= Int64.zero do
-    run_inst perf state
+    run_inst perf state;
+    if state.show then begin
+      print_plotline state.plot;
+      match state.message with
+      | Some(s) -> Printf.printf "%s" s
+      | None -> ()
+    end
   done;
   begin
     match state.tracefile with

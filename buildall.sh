@@ -1,3 +1,4 @@
+#!/bin/bash
 ocamlbuild -use-menhir primify.native
 ocamlbuild -use-menhir prasm.native
 ocamlbuild -use-menhir prun.native

@@ -2,7 +2,7 @@
 
 ## Modellering
 
-Vi modellerer effekten af hop, kald og retur ved at forsinke 'F'.
+Vi modellerer effekten af hop, kald og retur ved at forsinke `F`.
 For kald og retur skelner vi mellem korrekte og fejlagtige
 forudsigelser. For betingede hop skelner vi tillige mellem om
 hoppet tages eller ej.
@@ -73,7 +73,7 @@ Ydeevne: 10/6 IPC
 En anden teknik til at skjule omkostningen ved tagne hop er at man dimensionerer
 forenden af mikroarkitektur (F til Q) lidt større end resten. Her er for eksempel
 et afviklingsplot for den ikke udrullede løkke på en maskine der kan håndtere 3
-instruktioner samtidigt i F til Q:
+instruktioner samtidigt i `F` til `Q`:
 
 ~~~
                        012345678901234567
@@ -127,8 +127,8 @@ Oversat til x86prime kan det blive til følgende programstump:
         movq r14,(r15)
 .endif:
 ~~~
-og lad os antage at variablen 'tab' befinder sig i L2-cache, mens området
-udpeget af variablen 'ptr' er i L1-cache. Lad os antage at L2-cache tilgang
+og lad os antage at variablen `tab` befinder sig i L2-cache, mens området
+udpeget af variablen `ptr` er i L1-cache. Lad os antage at L2-cache tilgang
 koster 10 cykler (oveni L1-tilgang).
 ~~~
                               01234567890123456789012

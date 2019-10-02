@@ -466,6 +466,8 @@ let model_call perf state rd addr =
   Resource.use perf.alu exec_start (exec_start + 1);
   Resource.use perf.retire time_retire (time_retire + 1);
   Resource.use perf.rob rob_entry time_retire;
+  add_event state.plot 'B' exec_start;
+  add_event state.plot 'C' time_retire;
   perf.reg_ready.(rd) <- exec_start + 1
 
 let model_jmp perf state =
@@ -475,6 +477,8 @@ let model_jmp perf state =
   Resource.use_all perf.fetch_start (Resource.get_earliest perf.fetch_start + 1);
   Resource.use perf.alu exec_start (exec_start + 1);
   Resource.use perf.retire time_retire (time_retire + 1);
+  add_event state.plot 'B' exec_start;
+  add_event state.plot 'C' time_retire;
   Resource.use perf.rob rob_entry time_retire
 
 let model_nop perf state =
@@ -498,6 +502,8 @@ let model_cond_branch perf state from_ip to_ip taken ops_ready =
     Resource.use_all perf.fetch_start (Resource.get_earliest perf.fetch_start + 1);
   Resource.use perf.alu exec_start (exec_done);
   Resource.use perf.retire time_retire (time_retire + 1);
+  add_event state.plot 'B' exec_start;
+  add_event state.plot 'C' time_retire;
   Resource.use perf.rob rob_entry time_retire
 
 let model_compute perf state rd ops_ready latency =
@@ -535,6 +541,9 @@ let model_store perf state rd rs addr =
   Resource.use perf.agen agen_start agen_done;
   Resource.use perf.dcache access_start (access_start + 1);
   Resource.use perf.retire time_retire (time_retire + 1);
+  add_event state.plot 'A' agen_start;
+  add_event state.plot 'V' access_start;
+  add_event state.plot 'C' time_retire;
   Resource.use perf.rob rob_entry time_retire
 
 let model_load perf state rd rs addr =
@@ -551,6 +560,9 @@ let model_load perf state rd rs addr =
   Resource.use perf.dcache access_start (access_start + 1);
   Resource.use perf.retire time_retire (time_retire + 1);
   Resource.use perf.rob rob_entry time_retire;
+  add_event state.plot 'A' agen_start;
+  add_event state.plot 'L' access_start;
+  add_event state.plot 'C' time_retire;
   perf.reg_ready.(rd) <- data_ready
 
 

@@ -151,7 +151,7 @@ Vær opmærksom på at ovenstående implementerer en arkitektur med fuld forward
 Hvis vi i stedet ville have en maskine uden forwarding, ville alle værdier bliver produceret til fase `W`, hvor vi reelt skriver værdien tilbage.
 
 ### Eksempel: Data afhængigheder
-
+Lad os nu definerer det korrekt afviklingspot for eksemplet. Først, lad os dog opsummerer alt vi har defineret for maskinen:
 
 * Alle instruktioner gennemløber: `FDXMW`
 * Tilgængelige ressourcer: `F:1`, `D:1`, `X:1`, `M:1`, `W:1`
@@ -166,37 +166,26 @@ Hvis vi i stedet ville have en maskine uden forwarding, ville alle værdier bliv
 * Læsning     `movq (a),b`: `depend(X,a), produce(M,b)`
 * Skrivning   `movq b,(a)`: `depend(X,a), depend(M,b)`
 
-
-Ex: 5-trins pipeline, data forwarding
-~~~
-alle instruktioner:  FDXMW
-
-dataafhængigheder:
-simpel aritmetik a op b: X.time >= max(a.time, b.time); b.time = X.time + 1
-multiplikation   a op b: X.time >= max(a.time, b.time); b.time = X.time + 4
-movq (a),b: X.time >= a.time; M.time >= MEM[a].time; b.time = M.time + 1
-movq b,(a): X.time >= a.time, M.time >= b.time; MEM[a].time = S.time + 1
-
-inorder(F,D,X,M,W)
-resourcer pr clk: F:1, D:1, X:1, M:1, W:1
-~~~
-Giver følgende afvikling:
 ~~~
                  012345678
-movq (r10),r11   FDXMW          r11.time = 4
-addq $100,r11     FDDXMW        X.time >= r11.time -> Forsinket X, STALL i D, r11.time = 5
-movq r11,(r10)     FFDXMW       resA -> Forsinket D, STALL i F, X.time >= r10.time, S.time >= r11.time
-addq $8,r10          FDXMW      resA -> forsinket F, r10.time = 7
+movq (r10),r11   FDXMMW          -- Note: produce(M,r11)
+addq $100,r11     FDDDXMW        -- Note: depend(X,r11), produce(X,r11)
+movq r11,(r10)     FFFDXMW       -- Note: Stall i F, depend(X,r11)
+addq $8,r10           FDXMMW     -- Note: Forsinket F
 ~~~
+
+
 Bemærk hvorledes instruktion nr. 2 bliver forsinket en clock periode i sin `D`-fase,
 fordi den afhænger af `r11` som bliver produceret af den forudgående instruktion
 der har en latenstid på 2 clock-perioder.
 
 
+## Kontrol afhængigheder
 
 
 
-### Inorder udførsel af instruktioner
+
+## Inorder udførsel af instruktioner
 
 Men hov! Hvorfor kunne det ikke være:
 ~~~

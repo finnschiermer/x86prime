@@ -31,5 +31,4 @@ Her er kun en enkelt fase, kaldet `X` for eXecute, da alle instruktioner kan udf
 
 Hvis vi ønsker at finde denne arkitekturs ydeevne, kan man altså gøre dette ved at tælle antallet af instruktioner; i ovenstående tilfælde altså 4 clock perioder.
 
-
-
+&nbsp;

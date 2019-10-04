@@ -111,3 +111,4 @@ addq $8,r10         F----QX----C        r10.time = 10
 Med en gennemsnitlig ydeevne på 2 IPC.
 
 
+&nbsp;

@@ -111,19 +111,24 @@ movq (r10),r11
 addq $100,r11
 movq r11,(r10)
 addq $8,r10
+subq $1,r12
 ~~~
 
 Her bliver både register `r11` opdateret i instruktionen lige før det bliver læst; endda to gange. F.eks. indlæser første instruktion en værdi til `r11`, som anden instruktion staks lægger noget til; men også fra anden til tredje instruktion. Vi kan lave data-flow graph, som beskrevet i CSapp, som vil tydeliggøre de data afhængigheder, som eksisterer i programmet. Instruktionsnummeret er indsat efter navnet.
 
 ~~~ text
-    r10  r11
-    / | \ |
-addq4 | movq1
-      |   |
-      | addq2
-      | / |
-    movq3 |
-         r11
+    r10  r11   r12
+      | \ |     |
+      | movq1   |
+      |   |     |
+      | addq2   |
+      | / |     |
+    movq3 |     |
+      |   |     |
+    addq4 |    subq5
+      |   |     |
+    r10  r11   r12
+
 ~~~
 
 Hvis vi laver et simple afviklingsplot som før, vil vi få følgende:
@@ -132,6 +137,7 @@ movq (r10),r11  FDXMMW
 addq $100,r11    FDXXMW
 movq r11,(r10)    FDDXMMW
 addq $8,r10        FDDXXMW
+subq $1,r12         FFDDXMW
 (OVENSTÅENDE VIRKER IKKE)
 ~~~
 
@@ -153,8 +159,14 @@ Hvis vi i stedet ville have en maskine uden forwarding, ville alle værdier bliv
 ### Eksempel: Data afhængigheder
 Lad os nu definerer det korrekt afviklingspot for eksemplet. Først, lad os dog opsummerer alt vi har defineret for maskinen:
 
-* Alle instruktioner gennemløber: `FDXMW`
 * Tilgængelige ressourcer: `F:1`, `D:1`, `X:1`, `M:1`, `W:1`
+
+|             | Instruktion    | Faser     | Dataafhængigheder                          |
+| ----------- | -------------- | --------- | ------------------------------------------ |
+| Aritmetik   | `op  a b`      | `FDXMW`   | `depend(X,a), depend(X,b), produce(X,b)`   |
+| Læsning     | `movq (a),b`   | `FDXMW`   | `depend(X,a), produce(M,b)`                |
+| Skrivning   | `movq b,(a)`   | `FDXMW`   | `depend(X,a), depend(M,b)`                 |
+
 
 * Simpel aritmetik `op  a b`:    `delay(X)=1`
 * Multiplikation   `mul a b`:    `delay(X)=4`
@@ -162,16 +174,13 @@ Lad os nu definerer det korrekt afviklingspot for eksemplet. Først, lad os dog 
 * Skrivning        `movq b,(a)`: `delay(M)=2`
 * Alle øvrige faser tager har en latenstid på 1
 
-* Aritmetik   `op  a b`:    `depend(X,a), depend(X,b), produce(X,b)`
-* Læsning     `movq (a),b`: `depend(X,a), produce(M,b)`
-* Skrivning   `movq b,(a)`: `depend(X,a), depend(M,b)`
-
 ~~~
-                 012345678
-movq (r10),r11   FDXMMW          -- Note: produce(M,r11)
-addq $100,r11     FDDDXMW        -- Note: depend(X,r11), produce(X,r11)
-movq r11,(r10)     FFFDXMW       -- Note: Stall i F, depend(X,r11)
-addq $8,r10           FDXMMW     -- Note: Forsinket F
+                 01234567890     -- Beskrivelse
+movq (r10),r11   FDXMMW          -- produce(M,r11)
+addq $100,r11     FDDDXMW        -- depend(X,r11), produce(X,r11), stall i D
+movq r11,(r10)     FFFDXMMW      -- Stall i F, depend(X,r11)
+addq $8,r10           FDXXMW     -- Forsinket F
+subq $1,r12            FDDXMW    --
 ~~~
 
 
@@ -179,27 +188,41 @@ Bemærk hvorledes instruktion nr. 2 bliver forsinket en clock periode i sin `D`-
 fordi den afhænger af `r11` som bliver produceret af den forudgående instruktion
 der har en latenstid på 2 clock-perioder.
 
+## In-order udførsel af instruktioner
+Men hov! Vi har lige fundet ud af at sidste instruktion ikke har dataafhængigheder til de øvrige, så hvorfor kan vi ikke spare en clock periode ved at lave:
+~~~
+                 01234567        -- Beskrivelse
+movq (r10),r11   FDXMMW          -- produce(M,r11)
+addq $100,r11      FDDXMW        -- depend(X,r11), produce(X,r11), stall i D
+movq r11,(r10)      FFFDXMMW     -- Stall i F, depend(X,r11)
+addq $8,r10            FDXXMW    -- Forsinket F
+subq $1,r12       FDXXMW         --
+~~~
+Vi har måske lidt svært ved at se, hvordan en maskine overhovedet skulle
+kunne konstrueres således at ovenstående afviklingsrækkefølge kunne finde sted og en maskine er nødt til at læse instruktionerne i den rækkefølge, som er specificeret i vores program.
+
+Vi indfører derfor en begrænsning mere: Hver fase gennemføres i instruktionerne i rækkefølge.
+~~~
+inorder(F,D,X,M,W)
+~~~
+Vi har overholdt dette i tidligere eksempler. Vi kan tjekke det ved at når vi læser hver søjle oppefra, skal vi se faserne bagfra.
+
+Det er dog noget som vores oversætter kan håndterer, ved at flytte sidste instruktion frem. Dermed kan vi opnå ovenstående udførsel:
+
+~~~
+                 01234567        -- Beskrivelse
+                 01234567        -- Beskrivelse
+movq (r10),r11   FDXMMW          -- produce(M,r11)
+subq $1,r12       FDXXMW         --
+addq $100,r11      FDDXMW        -- depend(X,r11), produce(X,r11), stall i D
+movq r11,(r10)      FFFDXMMW     -- Stall i F, depend(X,r11)
+addq $8,r10            FDXXMW    -- Forsinket F
+~~~
+
 
 ## Kontrol afhængigheder
 
 
 
 
-## Inorder udførsel af instruktioner
-
-Men hov! Hvorfor kunne det ikke være:
-~~~
-                 01234567
-movq (r10),r11   FDXMW
-addq $100,r12       FDXMW
-movq r13,(r10)     FDXMW
-addq $8,r10       FDXMW
-~~~
-Vi har måske lidt svært ved at se, hvordan en maskine overhovedet skulle
-kunne konstrueres således at ovenstående afviklingsrækkefølge kunne finde sted.
-
-Vi indfører derfor en begrænsning mere: Hver fase gennemføres i instruktions-rækkefølge.
-~~~
-inorder(F,D,X,M,W)
-~~~
-
+&nbsp;

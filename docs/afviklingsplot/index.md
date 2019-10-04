@@ -1,6 +1,6 @@
 # Afviklings Plot (Execution graph)
 
-af Finn Schiermer Andersen, DIKU, 2019
+af Finn Schiermer Andersen og Michael Kirkedal Thomsen, DIKU, 2019
 
 Denne lille note introducerer afviklingsplot.
 

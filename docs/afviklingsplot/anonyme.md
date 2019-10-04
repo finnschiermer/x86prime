@@ -123,10 +123,10 @@ addq $100,r11        FFFFF------------XW     -- depend(X,r11), produce(W,r11)
 movq r11,(r10)        FFFF------------XM     -- depend(X,r10), depend(M,r11)
 addq $8,r10               F------------XW    -- depend(X,r10), produce(W,r10)
 ~~~
-9. instruktion kan starte indhentning som normalt. Hvis vi tæller antallet af streger over dette `F` (hold tungen lige i munden) tæller vi 8, som er plads til. I den efterfølgende periode (nummer 5) fortsætter først instruktion til `X`, så denne instruktion kan fortsætte sin indlæsning. Så skal vi bare huske vores afhængighed på `r10`.
-10. instruktion kan starte indhentning med den tidligere. Men nu er de anonyme faser fulde og vi bliver nødt til at blive i `F`. Afslutningen følger de tidligere iterationer.
-11. Vi han starte indlæsningen i periode 5, men er igen nødt til at stalle i `F`.
-12. Nu er `F` også blevet fyldt og vi er nødt til forsinke selve indlæsningen. Det er først i periode 9 at anden instruktion komme ud af sin indlæsning og vi kan derfor starte denne.
+* 9. instruktion kan starte indhentning som normalt. Hvis vi tæller antallet af streger over dette `F` (hold tungen lige i munden) tæller vi 8, som er plads til. I den efterfølgende periode (nummer 5) fortsætter først instruktion til `X`, så denne instruktion kan fortsætte sin indlæsning. Så skal vi bare huske vores afhængighed på `r10`.
+* 10. instruktion kan starte indhentning med den tidligere. Men nu er de anonyme faser fulde og vi bliver nødt til at blive i `F`. Afslutningen følger de tidligere iterationer.
+* 11. Vi han starte indlæsningen i periode 5, men er igen nødt til at stalle i `F`.
+* 12. Nu er `F` også blevet fyldt og vi er nødt til forsinke selve indlæsningen. Det er først i periode 9 at anden instruktion komme ud af sin indlæsning og vi kan derfor starte denne.
 
 Det man især kan tage med fra ovenstående eksempel, er hvor mange instruktioner, som er i gang med at blive indlæst og hvor lang tid denne del tager sammenlignet med selve beregningen.
 

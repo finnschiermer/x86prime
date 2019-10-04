@@ -220,7 +220,7 @@ addq $8,r10            FDXXMW    -- Forsinket F
 ~~~
 
 
-## Kontrol afhængigheder
+## Kontrolafhængigheder
 
 
 

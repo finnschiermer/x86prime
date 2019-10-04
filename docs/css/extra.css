@@ -4,6 +4,11 @@ ul {
   margin-bottom: 0px;
 }
 
+ol {
+  margin-top: 0px;
+  margin-bottom: 0px;
+}
+
 p {
   margin-top: 4px;
   margin-bottom: 0px;

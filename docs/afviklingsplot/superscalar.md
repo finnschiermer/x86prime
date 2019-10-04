@@ -25,16 +25,16 @@ Begrænsninger på instruktioner:
 
 |           | Instruktion  | Faser   | Dataafhængigheder                        |
 |-----------|--------------|---------|------------------------------------------|
-| Aritmetik | `op  a b`    | `FDXW`  | `depend(X,a), depend(X,b), produce(X,b)` |
-| Læsning   | `movq (a),b` | `FDXMW` | `depend(X,a), produce(M,b)`              |
+| Aritmetik | `op  a b`    | `FDXW`  | `depend(X,a), depend(X,b), produce(M,b)` |
+| Læsning   | `movq (a),b` | `FDXMW` | `depend(X,a), produce(W,b)`              |
 | Skrivning | `movq b,(a)` | `FDXM`  | `depend(X,a), depend(M,b)`               |
 
 Overvej afviklingen af følgende program:
 
-~~~
+~~~ text
                  012345678      -- Vigtige dataafhængigheder
-movq (r10),r11   FDXMW          -- produce(M,r11)
-addq $100,r11    FDDDXW         -- depend(X,r11), produce(X,r11)
+movq (r10),r11   FDXMW          -- produce(W,r11)
+addq $100,r11    FDDDXW         -- depend(X,r11), produce(M,r11)
 movq r11,(r10)    FDDXM         -- depend(M,r11)
 subq $8,r10       FFFDXW        --
 ~~~

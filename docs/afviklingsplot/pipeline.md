@@ -29,7 +29,7 @@ og slutter. Den lille detalje vil vi se bort fra.
 ### Eksempel: Simpel pipeline mikroarkitektur
 
 For eksempel vil afviklingsplottet for et mindre udvidet eksempel program, vil være følgende:
-~~~
+~~~ text
                  012345678
 movq (r10),r11   FDXMW
 mulq r10,r12      FDXMW
@@ -79,7 +79,7 @@ Husk vi har stadig:
 * Tilgængelige ressourcer: `F:1`, `D:1`, `X:1`, `M:1`, `W:1`
 
 Det tidligere eksempel, vil nu blive
-~~~
+~~~ text
                            111
                  0123456789012
 movq (r10),r11   FDXMMW
@@ -106,7 +106,7 @@ Vi kan igen prøver at udregne ydeevnen for programmet og se at det samlet bruge
 Mere signifikant end latenstiden er data afhængigheder. Det har ikke været et problem i vores tidligere eksempler (ikke en tilfældighed), men kan hurtigt blive det for normale programmer.
 
 Overvej følgende program:
-~~~
+~~~ text
 movq (r10),r11
 addq $100,r11
 movq r11,(r10)
@@ -132,7 +132,7 @@ Her bliver både register `r11` opdateret i instruktionen lige før det bliver l
 ~~~
 
 Hvis vi laver et simpelt afviklingsplot som før, vil vi få følgende:
-~~~
+~~~ text
 movq (r10),r11  FDXMMW
 addq $100,r11    FDXXMW
 movq r11,(r10)    FDDXMMW
@@ -145,13 +145,13 @@ Ud over den tydelige tekst, som indikerer det, kan vi overbevise os selv om at o
 
 For at undgå dette er vi nødt til at tilføje afhængighederne til vores instruktioner. Det kan vi skrive på følgende måde:
 
-* Aritmetik   `op  a b`:    `depend(X,a), depend(X,b), produce(X,b)`
-* Læsning     `movq (a),b`: `depend(X,a), produce(M,b)`
+* Aritmetik   `op  a b`:    `depend(X,a), depend(X,b), produce(M,b)`
+* Læsning     `movq (a),b`: `depend(X,a), produce(W,b)`
 * Skrivning   `movq b,(a)`: `depend(X,a), depend(M,b)`
 
-Her står at aritmetiske instruktioner er afhængig af, at værdierne for både `a` og `b` er klar til fase `X`, samt at de producerer deres resultat til register `b` i slutningen af fase `X`.
-Læsning fra hukommelsen kræver at adressen der skal læses fra register `a` er klar til fase `X` (husk at vi har beregningen af adressen i `X` fasen, selvom læsningen først foregår i `M` fasen), mens resultatet af læsningen til register `b` er klar efter fase `M`.
-Ved Skrivning til hukommelsen skal adressen i register `a` være klar til fase `X`, mens værdien først skal være klar til fase `M`. Skrivning til hukommelsen har ikke noget resultat.
+Her står at aritmetiske instruktioner er afhængig af, at værdierne for både `a` og `b` er klar til fase `X`, samt at de producerer deres resultat til register `b` som kan bruges fra starten af fase `M`.
+Læsning fra hukommelsen kræver at adressen der skal læses fra register `a` er klar til fase `X` (husk at vi har beregningen af adressen i `X` fasen, selvom læsningen først foregår i `M` fasen), mens resultatet af læsningen til register `b` er klar til fase `W`.
+Ved skrivning til hukommelsen skal adressen i register `a` være klar til fase `X`, mens værdien først skal være klar til fase `M`. Skrivning til hukommelsen har ikke noget resultat.
 
 Vær opmærksom på at ovenstående implementerer en arkitektur med fuld forwarding. Altså at alle værdier kan bruges umiddelbart i næste clock periode i alle efterfølgende instruktioner; dvs. før de reelt set er skrevet tilbage til registerfilen.
 Hvis vi i stedet ville have en maskine uden forwarding, ville alle værdier bliver produceret til fase `W`, hvor vi reelt skriver værdien tilbage.
@@ -163,8 +163,8 @@ Lad os nu definere det korrekte afviklingspot for eksemplet. Først, lad os dog 
 
 |             | Instruktion    | Faser     | Dataafhængigheder                          |
 | ----------- | -------------- | --------- | ------------------------------------------ |
-| Aritmetik   | `op  a b`      | `FDXMW`   | `depend(X,a), depend(X,b), produce(X,b)`   |
-| Læsning     | `movq (a),b`   | `FDXMW`   | `depend(X,a), produce(M,b)`                |
+| Aritmetik   | `op  a b`      | `FDXMW`   | `depend(X,a), depend(X,b), produce(M,b)`   |
+| Læsning     | `movq (a),b`   | `FDXMW`   | `depend(X,a), produce(W,b)`                |
 | Skrivning   | `movq b,(a)`   | `FDXMW`   | `depend(X,a), depend(M,b)`                 |
 
 
@@ -174,15 +174,14 @@ Lad os nu definere det korrekte afviklingspot for eksemplet. Først, lad os dog 
 * Skrivning        `movq b,(a)`: `delay(M)=2`
 * Alle øvrige faser tager har en latenstid på 1
 
-~~~
+~~~ text
                  01234567890     -- Beskrivelse
-movq (r10),r11   FDXMMW          -- produce(M,r11)
-addq $100,r11     FDDDXMW        -- depend(X,r11), produce(X,r11), stall i D
+movq (r10),r11   FDXMMW          -- produce(W,r11)
+addq $100,r11     FDDDXMW        -- depend(X,r11), produce(M,r11), stall i D
 movq r11,(r10)     FFFDXMMW      -- Stall i F, depend(X,r11)
 addq $8,r10           FDXXMW     -- Forsinket F
 subq $1,r12            FDDXMW    --
 ~~~
-
 
 Bemærk hvorledes instruktion nr. 2 bliver forsinket en clock periode i sin `D`-fase,
 fordi den afhænger af `r11` som bliver produceret af den forudgående instruktion
@@ -190,10 +189,10 @@ der har en latenstid på 2 clock-perioder.
 
 ## In-order udførsel af instruktioner
 Men hov! Vi har lige fundet ud af at sidste instruktion ikke har dataafhængigheder til de øvrige, så hvorfor kan vi ikke spare en clock periode ved at lave:
-~~~
+~~~ text
                  01234567        -- Beskrivelse
-movq (r10),r11   FDXMMW          -- produce(M,r11)
-addq $100,r11      FDDXMW        -- depend(X,r11), produce(X,r11), stall i D
+movq (r10),r11   FDXMMW          -- produce(W,r11)
+addq $100,r11      FDDXMW        -- depend(X,r11), produce(M,r11), stall i D
 movq r11,(r10)      FFFDXMMW     -- Stall i F, depend(X,r11)
 addq $8,r10            FDXXMW    -- Forsinket F
 subq $1,r12       FDXXMW         --
@@ -209,12 +208,12 @@ Vi har overholdt dette i tidligere eksempler. Vi kan tjekke det ved at når vi l
 
 I det her tilfælde kan vores oversætter forbedre situationen, ved at flytte sidste instruktion frem. Dermed kan vi opnå ovenstående udførsel:
 
-~~~
+~~~ text
                  01234567        -- Beskrivelse
                  01234567        -- Beskrivelse
-movq (r10),r11   FDXMMW          -- produce(M,r11)
+movq (r10),r11   FDXMMW          -- produce(W,r11)
 subq $1,r12       FDXXMW         --
-addq $100,r11      FDDXMW        -- depend(X,r11), produce(X,r11), stall i D
+addq $100,r11      FDDXMW        -- depend(X,r11), produce(M,r11), stall i D
 movq r11,(r10)      FFFDXMMW     -- Stall i F, depend(X,r11)
 addq $8,r10            FDXXMW    -- Forsinket F
 ~~~

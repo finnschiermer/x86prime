@@ -6,7 +6,7 @@ nav:
         - Introduktion: afviklingsplot/index.md
         - Simpel pipeline: afviklingsplot/pipeline.md
         - Superskalar: afviklingsplot/superscalar.md
-        - Anonyme Faser: afviklingsplot/anonyme.md
+        - Avanceret pipeline, anonyme faser: afviklingsplot/anonyme.md
         - Out-of-order: afviklingsplot/out-of-order.md
         - Kontrol afhængigheder: afviklingsplot/kontrol.md
 theme: readthedocs

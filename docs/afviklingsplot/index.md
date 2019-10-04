@@ -22,7 +22,7 @@ venstre mod højre.
 ### Eksempel: Enkelt-cyklus mikroarkitektur
 
 Her er for eksempel afviklingen af 4 instruktioner på en enkelt-cyklus (single cycle) mikroarkitektur
-~~~
+~~~ text
                  0123
 movq (r10),r11   X
 mulq $100,r11     X

@@ -21,13 +21,15 @@ type perf = {
 type event = Event of int * char
 
 type plotline = {
+    mutable count : int;
     mutable iptr : int;
     mutable ops : int list;
     mutable ims : int list;
     mutable events : event list;
     mutable disasm : string;
     mutable result : string;
-    mutable p_pos : int;
+    mutable first_cycle : int;
+    mutable last_cycle : int;
   }
 
 type state = {
@@ -51,7 +53,8 @@ let create () =
       ip = Int64.zero;
       message = None;
       plot = {
-          iptr = 0; ops = []; ims = []; events = []; disasm = ""; result = ""; p_pos = 0;
+          count = 0; iptr = 0; ops = []; ims = []; events = []; disasm = ""; result = ""; 
+          first_cycle = 0; last_cycle = 16
       };
       regs = Array.make 16 Int64.zero; 
       mem = Memory.create () 
@@ -59,11 +62,33 @@ let create () =
   machine
 
 let add_event line code time =
-  line.events <- line.events @ [Event(time, code)]
+  line.events <- line.events @ [Event(time, code)];
+  while time > line.last_cycle do line.last_cycle <- 16 + line.last_cycle done
 
 let add_result line res = line.result <- Printf.sprintf "%-50s" res
 
+let line_indent = "                                                                                                      "
+let line_background = Bytes.of_string "|                |                |                |                |"
+let line_separator = "|----------------|----------------|----------------|----------------|"
+let background_length = 64
+
 let print_plotline (line : plotline) =
+  if (line.count mod 16) = 0 then begin
+    if (line.count mod 32) = 0 then begin
+      let next_first_cycle = ref line.first_cycle in
+      let first_cycle = match line.events with
+        | Event(time,_) :: _ -> time
+        | _ -> line.first_cycle
+      in
+      while !next_first_cycle <= first_cycle - 16 do next_first_cycle := 16 + !next_first_cycle done;
+      if !next_first_cycle <> line.first_cycle then begin
+        Printf.printf "\n%s                  %s\n" line_indent line_separator;
+        line.first_cycle <- !next_first_cycle;
+      end
+    end;
+    Printf.printf "\n%s  %6d / %6d %s" line_indent line.count line.first_cycle line_separator;
+  end;
+  line.count <- 1 + line.count;
   let s = Printf.sprintf "%08x : " line.iptr in
   let map_ops op = Printf.sprintf "%02x " op in
   let map_imm imm = Printf.sprintf "%08x " imm in
@@ -71,11 +96,23 @@ let print_plotline (line : plotline) =
   let numstring = String.concat "" numlist in
   let len_nums = String.length numstring in
   let void = String.make (30 - len_nums) ' ' in
+  let put_char time char = begin
+    let disp = time - line.first_cycle in
+    let bars = 1 + disp / 16 in
+    let pos = disp + bars in
+    if disp < background_length then Bytes.set line_background pos char
+  end in
+  let put_event ev = match ev with Event(time,code) -> put_char time code in
+  let zap_event ev = match ev with Event(time,_) -> put_char time ' ' in
+  List.iter put_event line.events;
+(*
   let map_event ev = match ev with Event(time,code) -> Printf.sprintf "%c: %d" code time in
   let eventlist = List.map map_event line.events in
   let eventstring = String.concat "  " eventlist in
-  let total = String.concat "" [numstring; void; line.disasm; line.result; eventstring] in
-  Printf.printf "\n%s" total
+*)
+  let total = String.concat "" [numstring; void; line.disasm; line.result; Bytes.unsafe_to_string line_background] in
+  Printf.printf "\n%s" total;
+  List.iter zap_event line.events
 
 let set_show state = state.show <- true
 

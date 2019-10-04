@@ -18,7 +18,7 @@ Her ses nogle begrænsninger for en 5-trins pipeline:
 * Alle instruktioner gennemløber: `FDXMW`
 * Tilgængelige ressourcer: `F:1`, `D:1`, `X:1`, `M:1`, `W:1`
 
-Ovenstående skal læses som: alle instruktioner passerer gennem samtlige fem trin ordnet som beskrevet; det findes en ressource for hvert trin, altså der kan kun være en instruktion i hver trin.
+Ovenstående skal læses som: alle instruktioner passerer gennem samtlige fem trin ordnet som beskrevet; der findes en ressource for hvert trin, altså der kan kun være en instruktion i hver trin.
 
 Bemærk at det er en voldsom forenkling at udtrykke begrænsningen for
 instruktionshentning i et antal instruktioner. Især hvis instruktionen kommer til at ligge over to cache linier. For en maskine med instruktioner
@@ -65,7 +65,7 @@ Tilgang til lageret er også mere kompliceret og tager længere tid end en
 enkelt clock periode.
 
 ### Eksempel: Latenstid
-Lad os undersøge en pipeline maskine og definerer latenstiden i clock perioder (delay) for instruktionerne som:
+Lad os undersøge en pipelinet maskine og definere latenstiden i clock perioder (delay) for instruktionerne som:
 
 * Simpel aritmetik `op  a b`:    `delay(X)=1`
 * Multiplikation   `mul a b`:    `delay(X)=4`
@@ -99,7 +99,7 @@ Igen ser vi at:
 * alle linier i plottet indeholder alle fem trin mindst en gang, og
 * hver søjle (clock periode) kun indeholder hvert trin en gang.
 
-Vi kan igen prøver at udregne ydeevnen for programmet og se at det samlet bruger 13 clock perioder. Igen bliver det flere perioder hvis vi sammenligner med den simple pipeline, men igen kan vi forvente en lavere clock periode.
+Vi kan igen prøver at udregne ydeevnen for programmet og se at det samlet bruger 13 clock perioder. Igen bliver det flere perioder hvis vi sammenligner med den simple pipeline, men igen kan vi forvente en kortere clock periode.
 
 
 ## Data afhængigheder og forwarding
@@ -131,7 +131,7 @@ Her bliver både register `r11` opdateret i instruktionen lige før det bliver l
 
 ~~~
 
-Hvis vi laver et simple afviklingsplot som før, vil vi få følgende:
+Hvis vi laver et simpelt afviklingsplot som før, vil vi få følgende:
 ~~~
 movq (r10),r11  FDXMMW
 addq $100,r11    FDXXMW
@@ -141,7 +141,7 @@ subq $1,r12         FFDDXMW
 (OVENSTÅENDE VIRKER IKKE)
 ~~~
 
-Ud over den tydelige tekst, som indikerer det, kan vi overbevise os selv om at ovenstående ikke virker. Vi har en data afhængighed mellem læsningen og først addition og vi ved fra ovenstående den tidligere uformelle beskrivelse at læsning fra hukommelse sker i `M`fasen. Men i plottet laver vi additionen i `X` samtidig med `M`; altså før vi har værdien til rådighed.
+Ud over den tydelige tekst, som indikerer det, kan vi overbevise os selv om at ovenstående ikke virker. Vi har en data afhængighed mellem læsningen og først addition og vi ved fra den tidligere uformelle beskrivelse at læsning fra hukommelse sker i `M`fasen. Men i plottet laver vi additionen i `X` samtidig med `M`; altså før vi har værdien til rådighed.
 
 For at undgå dette er vi nødt til at tilføje afhængighederne til vores instruktioner. Det kan vi skrive på følgende måde:
 
@@ -149,15 +149,15 @@ For at undgå dette er vi nødt til at tilføje afhængighederne til vores instr
 * Læsning     `movq (a),b`: `depend(X,a), produce(M,b)`
 * Skrivning   `movq b,(a)`: `depend(X,a), depend(M,b)`
 
-Her står at aritmetiske instruktioner er afhængig er at værdierne for både `a` og `b` er klar til fase `X`, samt at de producerer deres resultat til register `b` i slutningen af fase `X`.
-Læsning fra hukommelsen kræver at adressen der skal læses fra register `a` er klar til fase `X` (husk at vi har beregningen af adressen i `X` fasen, selvom læsningen først foregår i `M` fasen), mens resultatet er læsningen til register `b` er klar efter fase `M`.
-Ved Skrivning til hukommelsen skal adressen i register `a` er klar til fase `X`, mens værdien først skal være klar til fase `M`. Skrivning til hukommelsen har ikke noget resultat.
+Her står at aritmetiske instruktioner er afhængig af, at værdierne for både `a` og `b` er klar til fase `X`, samt at de producerer deres resultat til register `b` i slutningen af fase `X`.
+Læsning fra hukommelsen kræver at adressen der skal læses fra register `a` er klar til fase `X` (husk at vi har beregningen af adressen i `X` fasen, selvom læsningen først foregår i `M` fasen), mens resultatet af læsningen til register `b` er klar efter fase `M`.
+Ved Skrivning til hukommelsen skal adressen i register `a` være klar til fase `X`, mens værdien først skal være klar til fase `M`. Skrivning til hukommelsen har ikke noget resultat.
 
 Vær opmærksom på at ovenstående implementerer en arkitektur med fuld forwarding. Altså at alle værdier kan bruges umiddelbart i næste clock periode i alle efterfølgende instruktioner; dvs. før de reelt set er skrevet tilbage til registerfilen.
 Hvis vi i stedet ville have en maskine uden forwarding, ville alle værdier bliver produceret til fase `W`, hvor vi reelt skriver værdien tilbage.
 
 ### Eksempel: Data afhængigheder
-Lad os nu definerer det korrekt afviklingspot for eksemplet. Først, lad os dog opsummerer alt vi har defineret for maskinen:
+Lad os nu definere det korrekte afviklingspot for eksemplet. Først, lad os dog opsummere alt vi har defineret for maskinen:
 
 * Tilgængelige ressourcer: `F:1`, `D:1`, `X:1`, `M:1`, `W:1`
 
@@ -201,13 +201,13 @@ subq $1,r12       FDXXMW         --
 Vi har måske lidt svært ved at se, hvordan en maskine overhovedet skulle
 kunne konstrueres således at ovenstående afviklingsrækkefølge kunne finde sted og en maskine er nødt til at læse instruktionerne i den rækkefølge, som er specificeret i vores program.
 
-Vi indfører derfor en begrænsning mere: Hver fase gennemføres i instruktionerne i rækkefølge.
+Vi indfører derfor en begrænsning mere: Hver fase gennemføres i instruktions-rækkefølge.
 ~~~
 inorder(F,D,X,M,W)
 ~~~
 Vi har overholdt dette i tidligere eksempler. Vi kan tjekke det ved at når vi læser hver søjle oppefra, skal vi se faserne bagfra.
 
-Det er dog noget som vores oversætter kan håndterer, ved at flytte sidste instruktion frem. Dermed kan vi opnå ovenstående udførsel:
+I det her tilfælde kan vores oversætter forbedre situationen, ved at flytte sidste instruktion frem. Dermed kan vi opnå ovenstående udførsel:
 
 ~~~
                  01234567        -- Beskrivelse

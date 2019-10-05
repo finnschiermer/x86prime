@@ -4,7 +4,7 @@ Siden slutningen af 70'erne hvor de første pipeline arkitekturer blev introduce
 
 Faserne gennemløbes i rækkefølge bestemt af instruktionstype og mikroarkitektur.
 
-Betragt for eksempel en afviklingen på en simpel pipeline, typisk for de første RISC
+Betragt for eksempel afviklingen på en simpel pipeline, typisk for de første RISC
 maskiner konstrueret i 80'erne. Her er der fem faser:
 
 * `F`: Fetch, indlæsning af instruktionen fra hukommelse,
@@ -43,7 +43,7 @@ Det er vigtigt at vi overholde begrænsningerne. For at tjekke det ser vi at:
 * første begrænsning bliver overholdt, da alle linier i plottet indeholder alle fem trin, og
 * anden begrænsning bliver overholdt da hver søjle (clock periode) kun indeholder hvert trin en gang.
 
-Hvis vi prøver at udregne ydeevnen for programmet, kan vi se at det samlet bruger 8 clock perioder: antallet af instruktioner + antallet af trin - 1. Hvis vi sammenligner med vores enkelt-cyklus maskine, er dette næsten så mange clock perioder, men en periode vil også være signifikant kortere; dog ikke så lav som en femtedel.
+Hvis vi prøver at udregne ydeevnen for programmet, kan vi se at det samlet bruger 9 clock perioder: antallet af instruktioner + antallet af trin - 1. Hvis vi sammenligner med vores enkelt-cyklus maskine, er dette næsten så mange clock perioder, men en periode vil også være signifikant kortere; dog ikke så lav som en femtedel.
 
 
 ## Latenstid af faser
@@ -71,7 +71,7 @@ Lad os undersøge en pipelinet maskine og definere latenstiden i clock perioder 
 * Multiplikation   `mul a b`:    `delay(X)=4`
 * Læsning          `movq (a),b`: `delay(M)=2`
 * Skrivning        `movq b,(a)`: `delay(M)=2`
-* Alle øvrige faser tager har en latenstid på 1
+* Alle øvrige faser taget har en latenstid på 1
 
 Husk vi har stadig:
 
@@ -114,7 +114,7 @@ addq $8,r10
 subq $1,r12
 ~~~
 
-Her bliver både register `r11` opdateret i instruktionen lige før det bliver læst; endda to gange. F.eks. indlæser første instruktion en værdi til `r11`, som anden instruktion staks lægger noget til; men også fra anden til tredje instruktion. Vi kan lave data-flow graph, som beskrevet i CSapp, som vil tydeliggøre de data afhængigheder, som eksisterer i programmet. Instruktionsnummeret er indsat efter navnet.
+Her bliver register `r11` opdateret i instruktionen lige før det bliver læst; endda to gange. F.eks. indlæser første instruktion en værdi til `r11`, som anden instruktion straks lægger noget til; men også fra anden til tredje instruktion. Vi kan lave data-flow graph, som beskrevet i CSapp, som vil tydeliggøre de data afhængigheder, som eksisterer i programmet. Instruktionsnummeret er indsat efter navnet.
 
 ~~~ text
     r10  r11   r12
@@ -149,7 +149,7 @@ For at undgå dette er vi nødt til at tilføje afhængighederne til vores instr
 * Læsning     `movq (a),b`: `depend(X,a), produce(W,b)`
 * Skrivning   `movq b,(a)`: `depend(X,a), depend(M,b)`
 
-Her står at aritmetiske instruktioner er afhængig af, at værdierne for både `a` og `b` er klar til fase `X`, samt at de producerer deres resultat til register `b` som kan bruges fra starten af fase `M`.
+Her står at aritmetiske instruktioner er afhængige af, at værdierne for både `a` og `b` er klar til fase `X`, samt at de producerer deres resultat til register `b` som kan bruges fra starten af fase `M`.
 Læsning fra hukommelsen kræver at adressen der skal læses fra register `a` er klar til fase `X` (husk at vi har beregningen af adressen i `X` fasen, selvom læsningen først foregår i `M` fasen), mens resultatet af læsningen til register `b` er klar til fase `W`.
 Ved skrivning til hukommelsen skal adressen i register `a` være klar til fase `X`, mens værdien først skal være klar til fase `M`. Skrivning til hukommelsen har ikke noget resultat.
 
@@ -172,10 +172,10 @@ Lad os nu definere det korrekte afviklingspot for eksemplet. Først, lad os dog 
 * Multiplikation   `mul a b`:    `delay(X)=4`
 * Læsning          `movq (a),b`: `delay(M)=2`
 * Skrivning        `movq b,(a)`: `delay(M)=2`
-* Alle øvrige faser tager har en latenstid på 1
+* Alle øvrige faser taget har en latenstid på 1
 
 ~~~ text
-                 01234567890     -- Beskrivelse
+                 012345678901    -- Beskrivelse
 movq (r10),r11   FDXMMW          -- produce(W,r11)
 addq $100,r11     FDDDXMW        -- depend(X,r11), produce(M,r11), stall i D
 movq r11,(r10)     FFFDXMMW      -- Stall i F, depend(X,r11)
@@ -190,7 +190,7 @@ der har en latenstid på 2 clock-perioder.
 ## In-order udførsel af instruktioner
 Men hov! Vi har lige fundet ud af at sidste instruktion ikke har dataafhængigheder til de øvrige, så hvorfor kan vi ikke spare en clock periode ved at lave:
 ~~~ text
-                 01234567        -- Beskrivelse
+                 012345678901    -- Beskrivelse
 movq (r10),r11   FDXMMW          -- produce(W,r11)
 addq $100,r11      FDDXMW        -- depend(X,r11), produce(M,r11), stall i D
 movq r11,(r10)      FFFDXMMW     -- Stall i F, depend(X,r11)
@@ -209,8 +209,7 @@ Vi har overholdt dette i tidligere eksempler. Vi kan tjekke det ved at når vi l
 I det her tilfælde kan vores oversætter forbedre situationen, ved at flytte sidste instruktion frem. Dermed kan vi opnå ovenstående udførsel:
 
 ~~~ text
-                 01234567        -- Beskrivelse
-                 01234567        -- Beskrivelse
+                 012345678901    -- Beskrivelse
 movq (r10),r11   FDXMMW          -- produce(W,r11)
 subq $1,r12       FDXXMW         --
 addq $100,r11      FDDXMW        -- depend(X,r11), produce(M,r11), stall i D

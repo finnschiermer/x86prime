@@ -17,7 +17,7 @@ registerfilen.
 Faser:
 
 * Tilgængelige ressourcer: `F:2`, `D:2`, `X:2`, `M:1`, `W:2`
-* Alle faser tager har en latenstid på 1
+* Alle faser taget har en latenstid på 1
 * `inorder(F,D,X,M,W)`
 
 
@@ -32,7 +32,7 @@ Begrænsninger på instruktioner:
 Overvej afviklingen af følgende program:
 
 ~~~ text
-                 012345678      -- Vigtige dataafhængigheder
+                 0123456        -- Vigtige dataafhængigheder
 movq (r10),r11   FDXMW          -- produce(W,r11)
 addq $100,r11    FDDDXW         -- depend(X,r11), produce(M,r11)
 movq r11,(r10)    FDDXM         -- depend(M,r11)

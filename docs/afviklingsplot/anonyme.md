@@ -74,7 +74,7 @@ Nu begynder der at ske en del.
 
 ## Abstraktion, samlet indlæsning afkodning
 
-Anonyme faser også gøre det nemmere at se bort fra ting der ikke har interesse.
+Anonyme faser kan også gøre det nemmere at se bort fra ting der ikke har interesse.
 For eksempel kan vi udelade afkodningstrinnet fra vores beskrivelse, da det altid følger direkte efter indhentning og har samme antal ressourcer. I stedet kan vi lave vores indlæsningstrin det længere og få samme afvikling:
 
 |           | Instruktion  | Faser        | Dataafhængigheder                          |
@@ -84,7 +84,7 @@ For eksempel kan vi udelade afkodningstrinnet fra vores beskrivelse, da det alti
 | Skrivning | `movq b,(a)` | `F----XM`    | `depend(X,a), depend(M,b)`                 |
 
 * Tilgængelige ressourcer: `F:2`, `X:2`, `M:1`, `W:2`
-* Antal instruktioner underberegning: `F-X: 8`, `D-X: 2`, `M-W: 2`
+* Antal instruktioner under beregning: `F-X: 8`, `D-X: 2`, `M-W: 2`
 * `inorder(F,D,X,M,W)`
 
 Dette giver den samme afvikling, blot er `D` ikke nævnt, men til gængæld kan det være mere overskueligt.
@@ -101,32 +101,32 @@ addq $8,r10         F------------XW    -- depend(X,r10), produce(W,r10)
 ~~~
 
 Bemærk iøvrigt at selvom denne maskine kan håndtere 2 instruktioner per clk, så
-opnår den i ovenstående eksempel 8/11 IPC, dvs. mindre end 1 instruktion per clk.
+opnår den i ovenstående eksempel 4/9 IPC, dvs. mindre end ½ instruktion per clk.
 
 
 
 ## Eksempel 2: Mere udrulning
-Det ligning at vi nu bare kan indhente instruktioner, som vi lyster. Så når vi nu er så godt i gang kan vi tage en udrulning mere.
+Det ser ud til at vi nu bare kan indhente instruktioner, som vi lyster. Så når vi nu er så godt i gang, kan vi tage en udrulning mere.
 
 ~~~ text
-                 012345678901234567    -- Vigtigste bemærkning
-movq (r10),r11   F----XM--W            -- produce(W,r11)
-addq $100,r11    F--------XW           -- depend(X,r11), produce(W,r11)
-movq r11,(r10)    F-------XM           -- depend(M,r11), depend(M,r11)
-addq $8,r10       F--------XW          -- produce(W,r10)
-movq (r10),r11     F--------XM--W      -- depend(X,r10), produce(W,r11)
-addq $100,r11      F------------XW     -- depend(X,r11), produce(W,r11)
-movq r11,(r10)      F-----------XM     -- depend(X,r10), depend(M,r11)
-addq $8,r10         F------------XW    -- depend(X,r10), produce(W,r10)
+                 012345678901234567890123    -- Vigtigste bemærkning
+movq (r10),r11   F----XM--W                  -- produce(W,r11)
+addq $100,r11    F--------XW                 -- depend(X,r11), produce(W,r11)
+movq r11,(r10)    F-------XM                 -- depend(M,r11), depend(M,r11)
+addq $8,r10       F--------XW                -- produce(W,r10)
+movq (r10),r11     F--------XM--W            -- depend(X,r10), produce(W,r11)
+addq $100,r11      F------------XW           -- depend(X,r11), produce(W,r11)
+movq r11,(r10)      F-----------XM           -- depend(X,r10), depend(M,r11)
+addq $8,r10         F------------XW          -- depend(X,r10), produce(W,r10)
 movq (r10),r11       F------------XM--W      -- depend(X,r10), produce(W,r11)
 addq $100,r11        FFFFF------------XW     -- depend(X,r11), produce(W,r11)
 movq r11,(r10)        FFFF------------XM     -- depend(X,r10), depend(M,r11)
 addq $8,r10               F------------XW    -- depend(X,r10), produce(W,r10)
 ~~~
-* 9. instruktion kan starte indhentning som normalt. Hvis vi tæller antallet af streger over dette `F` (hold tungen lige i munden) tæller vi 8, som er plads til. I den efterfølgende periode (nummer 5) fortsætter først instruktion til `X`, så denne instruktion kan fortsætte sin indlæsning. Så skal vi bare huske vores afhængighed på `r10`.
-* 10. instruktion kan starte indhentning med den tidligere. Men nu er de anonyme faser fulde og vi bliver nødt til at blive i `F`. Afslutningen følger de tidligere iterationer.
-* 11. Vi han starte indlæsningen i periode 5, men er igen nødt til at stalle i `F`.
-* 12. Nu er `F` også blevet fyldt og vi er nødt til forsinke selve indlæsningen. Det er først i periode 9 at anden instruktion komme ud af sin indlæsning og vi kan derfor starte denne.
+9. instruktion kan starte indhentning som normalt. Hvis vi tæller antallet af streger over dette `F` (hold tungen lige i munden) tæller vi 8, som er plads til. I den efterfølgende periode (nummer 5) fortsætter først instruktion til `X`, så denne instruktion kan fortsætte sin indlæsning. Så skal vi bare huske vores afhængighed på `r10`.
+10. instruktion kan starte indhentning med den tidligere. Men nu er de anonyme faser fulde og vi bliver nødt til at blive i `F`. Afslutningen følger de tidligere iterationer.
+11. Vi kan starte indlæsningen i periode 5, men er igen nødt til at stalle i `F`.
+12. Nu er `F` også blevet fyldt og vi er nødt til forsinke selve indlæsningen. Det er først i periode 9 at anden instruktion komme ud af sin indlæsning og vi kan derfor starte denne.
 
 Det man især kan tage med fra ovenstående eksempel, er hvor mange instruktioner, som er i gang med at blive indlæst og hvor lang tid denne del tager sammenlignet med selve beregningen.
 

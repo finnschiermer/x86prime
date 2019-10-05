@@ -96,7 +96,7 @@ let run entry =
                   i = Cache.cache_create !i_idx_bits !i_blk_bits !i_assoc !i_latency (Cache l2);
                   d = Cache.cache_create !d_idx_bits !d_blk_bits !d_assoc !d_latency (Cache l2);
                   fetch_start = Resource.create "fetch-start" true !pipe_width 1000;
-                  fetch_decode_q = Resource.create "fetch-decode" true fd_queue_size 1000;
+                  fetch_decode_q = Resource.create "fetch-decode" true fd_queue_size 10000;
                   rob = if !ooo then Resource.create "reorder buffer" true 128 10000
                         else Resource.create "exec" true num_alus 1000;
                   alu = alu_resource;

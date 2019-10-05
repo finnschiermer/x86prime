@@ -34,24 +34,24 @@ let write_byte mem addr value =
 
 
 let write_quad mem addr value =
-  write_byte mem addr (Int64.to_int (Int64.shift_right_logical value 56));
-  write_byte mem (Int64.add addr (Int64.of_int 1)) (Int64.to_int (Int64.shift_right_logical value 48));
-  write_byte mem (Int64.add addr (Int64.of_int 2)) (Int64.to_int (Int64.shift_right_logical value 40));
-  write_byte mem (Int64.add addr (Int64.of_int 3)) (Int64.to_int (Int64.shift_right_logical value 32));
-  write_byte mem (Int64.add addr (Int64.of_int 4)) (Int64.to_int (Int64.shift_right_logical value 24));
-  write_byte mem (Int64.add addr (Int64.of_int 5)) (Int64.to_int (Int64.shift_right_logical value 16));
-  write_byte mem (Int64.add addr (Int64.of_int 6)) (Int64.to_int (Int64.shift_right_logical value 8));
-  write_byte mem (Int64.add addr (Int64.of_int 7)) (Int64.to_int value)
+  write_byte mem (Int64.add addr (Int64.of_int 7)) (Int64.to_int (Int64.shift_right_logical value 56));
+  write_byte mem (Int64.add addr (Int64.of_int 6)) (Int64.to_int (Int64.shift_right_logical value 48));
+  write_byte mem (Int64.add addr (Int64.of_int 5)) (Int64.to_int (Int64.shift_right_logical value 40));
+  write_byte mem (Int64.add addr (Int64.of_int 4)) (Int64.to_int (Int64.shift_right_logical value 32));
+  write_byte mem (Int64.add addr (Int64.of_int 3)) (Int64.to_int (Int64.shift_right_logical value 24));
+  write_byte mem (Int64.add addr (Int64.of_int 2)) (Int64.to_int (Int64.shift_right_logical value 16));
+  write_byte mem (Int64.add addr (Int64.of_int 1)) (Int64.to_int (Int64.shift_right_logical value 8));
+  write_byte mem (Int64.add addr (Int64.of_int 0)) (Int64.to_int value)
 
 let read_quad mem addr =
-  let v7 = Int64.of_int (read_byte mem addr) in
-  let v6 = Int64.of_int (read_byte mem (Int64.add addr (Int64.of_int 1))) in
-  let v5 = Int64.of_int (read_byte mem (Int64.add addr (Int64.of_int 2))) in
-  let v4 = Int64.of_int (read_byte mem (Int64.add addr (Int64.of_int 3))) in
-  let v3 = Int64.of_int (read_byte mem (Int64.add addr (Int64.of_int 4))) in
-  let v2 = Int64.of_int (read_byte mem (Int64.add addr (Int64.of_int 5))) in
-  let v1 = Int64.of_int (read_byte mem (Int64.add addr (Int64.of_int 6))) in
-  let v0 = Int64.of_int (read_byte mem (Int64.add addr (Int64.of_int 7))) in
+  let v7 = Int64.of_int (read_byte mem (Int64.add addr (Int64.of_int 7))) in
+  let v6 = Int64.of_int (read_byte mem (Int64.add addr (Int64.of_int 6))) in
+  let v5 = Int64.of_int (read_byte mem (Int64.add addr (Int64.of_int 5))) in
+  let v4 = Int64.of_int (read_byte mem (Int64.add addr (Int64.of_int 4))) in
+  let v3 = Int64.of_int (read_byte mem (Int64.add addr (Int64.of_int 3))) in
+  let v2 = Int64.of_int (read_byte mem (Int64.add addr (Int64.of_int 2))) in
+  let v1 = Int64.of_int (read_byte mem (Int64.add addr (Int64.of_int 1))) in
+  let v0 = Int64.of_int (read_byte mem (Int64.add addr (Int64.of_int 0))) in
   Int64.logor
     (Int64.logor
       (Int64.logor (Int64.shift_left v7 56) (Int64.shift_left v6 48))

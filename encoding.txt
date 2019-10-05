@@ -45,7 +45,7 @@ aaaa indicates the kind of arithmetic operation. All operate on full 64 bits:
 d,s and z are registers:
 
 0000 %rax     1000 %r8
-0001 %rbc     1001 %r9
+0001 %rbx     1001 %r9
 0010 %rcx     1010 %r10
 0011 %rdx     1011 %r11
 0100 %rbp     1100 %r12

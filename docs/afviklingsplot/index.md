@@ -1,6 +1,6 @@
 # Afviklings Plot (Execution graph)
 
-af Finn Schiermer Andersen og Michael Kirkedal Thomsen, DIKU, 2019
+_af Finn Schiermer Andersen og Michael Kirkedal Thomsen, DIKU, 2019_
 
 Denne lille note introducerer afviklingsplot.
 
@@ -9,6 +9,9 @@ afvikler en strøm af instruktioner. Men det er også et redskab som kan bruges
 til at bestemme CPI (cycles per instruction), et vigtig mål for en mikroarkitekturs 
 ydeevne for en strøm af instruktioner. (Det andet vigtige mål er selvfølgelig
 maskinens clock-frekvens)
+
+Vi vil lave en gradvis opbygning og langsomt øve kompleksiteten. Dvs. vi starter her med en kort beskrivelse, eksemplificeret på en enkelt-cyklus maskine. Derefter vil vi beskrive hvordan det fungerer på en [simpel pipeline maskine](pipeline.md), hvilket vil give en dybere forståelse. Derefter vil vi bevæge os over [superskalar arkitekturer](superscalar.md) til en mere [avanceret pipeline mikroarkitektur](anonyme.md).
+
 
 
 ## Idè

@@ -49,8 +49,5 @@ subq $8,r10       FFFDXW        --
 Hvis vi igen kigger på søjlerne i plottet, har ingen af disse flere forekomster af faserne end vi har ressourcer  til rådighed. Der er altså højst 2 `F`'er, `D`'er osv., men kun højest et `M`. Dertil ser vi at søjlerne oppefra lister faserne bagfra og vi ved derfor at disse bliver udført in-order.
 
 
-## Eksempel 2: Kontrolafhængighed
-
-
 
 &nbsp;

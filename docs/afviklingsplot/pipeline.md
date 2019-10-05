@@ -220,8 +220,8 @@ addq $8,r10            FDXXMW    -- Forsinket F
 
 
 ## Kontrolafhængigheder
+Den opmærksomme læser har nok lagt mærke til at alle tidligere programmer og mikroarkitekturer har manglet noget. Vi har endnu kun snakket om sekventielle instruktioner og ikke overvejet kontrolinstruktioner. Det skyldes at det gør vores plots og model signifikant mere kompliceret og senere udvidelser vil faktisk gøre det nemmere.
 
-
-
+Det er derfor noget som I stadig må glæde jer til.
 
 &nbsp;

@@ -11,10 +11,13 @@ type perf = {
     rob : Resource.resource;
     alu : Resource.resource;
     agen : Resource.resource;
+    branch : Resource.resource;
     dcache : Resource.resource;
     retire : Resource.resource;
     reg_ready : int array;
-    dec_lat : int
+    dec_lat : int;
+    ooo : bool;
+    perf_model : bool
   }
 
 

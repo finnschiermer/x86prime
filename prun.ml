@@ -98,10 +98,13 @@ let run entry =
                   rob = Resource.create "reorder buffer" true 128 10000;
                   alu = Resource.create "arithmetic" (not !ooo) num_alus 1000;
                   agen = Resource.create "agen" true 1 1000;
+                  branch = Resource.create "branch-resolver" true 1 1000;
                   dcache = Resource.create "dcache" (not !ooo) 1 1000;
                   retire = Resource.create "retire" true 4 1000;
                   reg_ready = Array.make 16 0;
                   dec_lat = !dec_latency;
+                  ooo = false;
+                  perf_model = false
                 } in
               Machine.run p_control !machine;
         end

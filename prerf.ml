@@ -78,7 +78,9 @@ let run entry =
               Machine.set_ip !machine addr;
               let l2 = Cache.cache_create !l2_idx_bits !l2_blk_bits !l2_assoc !l2_latency (MainMemory !mem_latency) in
               let num_alus = if !pipe_width > 2 then !pipe_width - 1 else !pipe_width in
-              let fd_queue_size = (1 + !i_latency + !dec_latency) * !pipe_width in
+              let id_latency = (!i_latency + !dec_latency) in
+              let fd_queue_size = id_latency * !pipe_width in
+              let alu_resource = Resource.create "arithmetic" (not !ooo) num_alus 1000 in
               let p_control : Machine.perf = {
                   bp = begin match !p_type with
                        | "t" -> Predictors.create_taken_predictor ()
@@ -95,13 +97,17 @@ let run entry =
                   d = Cache.cache_create !d_idx_bits !d_blk_bits !d_assoc !d_latency (Cache l2);
                   fetch_start = Resource.create "fetch-start" true !pipe_width 1000;
                   fetch_decode_q = Resource.create "fetch-decode" true fd_queue_size 1000;
-                  rob = Resource.create "reorder buffer" true 128 10000;
-                  alu = Resource.create "arithmetic" (not !ooo) num_alus 1000;
-                  agen = Resource.create "agen" true 1 1000;
+                  rob = if !ooo then Resource.create "reorder buffer" true 128 10000
+                        else Resource.create "exec" true num_alus 1000;
+                  alu = alu_resource;
+                  agen = if !ooo then Resource.create "agen" true 1 1000 else alu_resource;
+                  branch = Resource.create "branch-resolver" true 1 1000;
                   dcache = Resource.create "dcache" (not !ooo) 1 1000;
-                  retire = Resource.create "retire" true 4 1000;
+                  retire = Resource.create "retire" true !pipe_width 1000;
                   reg_ready = Array.make 16 0;
                   dec_lat = !dec_latency;
+                  ooo = !ooo;
+                  perf_model = true
                 } in
               Machine.run p_control !machine;
               if !print_perf then begin
@@ -114,14 +120,15 @@ let run entry =
                 let r,w,m = Cache.cache_get_stats p_control.l2 in
                 let mr = (float_of_int m) /. (float_of_int (r+w)) in
                 Printf.printf "L2-Cache reads: %8d   writes: %8d   miss: %8d   missrate: %f\n" r w m mr;
-                let r,w,m = Cache.cache_get_stats p_control.i in
-                let mr = (float_of_int m) /. (float_of_int (r+w)) in
-                Printf.printf "I-Cache reads:  %8d   writes: %8d   miss: %8d   missrate: %f\n" r w m mr;
+                let r_i,w,m = Cache.cache_get_stats p_control.i in
+                let mr = (float_of_int m) /. (float_of_int (r_i+w)) in
+                Printf.printf "I-Cache reads:  %8d   writes: %8d   miss: %8d   missrate: %f\n" r_i w m mr;
                 let r,w,m = Cache.cache_get_stats p_control.d in
                 let mr = (float_of_int m) /. (float_of_int (r+w)) in
                 Printf.printf "D-Cache reads:  %8d   writes: %8d   miss: %8d   missrate: %f\n" r w m mr;
                 let finished = Resource.get_earliest p_control.retire in
-                Printf.printf "Execution finished at cycle %d\n" finished
+                Printf.printf "Execution finished at cycle %d (CPI = %f)\n" finished 
+                              ((float_of_int finished) /. (float_of_int r_i))
               end
         end
     end

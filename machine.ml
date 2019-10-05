@@ -12,14 +12,16 @@ type perf = {
     rob : Resource.resource;
     alu : Resource.resource;
     agen : Resource.resource;
+    branch : Resource.resource;
     dcache : Resource.resource;
     retire : Resource.resource;
     reg_ready : int array;
-    dec_lat : int
+    dec_lat : int;
+    ooo : bool;
+    perf_model : bool
   }
 
 type event = Event of int * char
-
 type plotline = {
     mutable count : int;
     mutable iptr : int;
@@ -53,7 +55,9 @@ let create () =
       ip = Int64.zero;
       message = None;
       plot = {
-          count = 0; iptr = 0; ops = []; ims = []; events = []; disasm = ""; result = ""; 
+          count = 0; iptr = 0; ops = []; ims = []; 
+          events = [];
+          disasm = ""; result = ""; 
           first_cycle = 0; last_cycle = 16
       };
       regs = Array.make 16 Int64.zero; 
@@ -61,32 +65,37 @@ let create () =
     } in
   machine
 
-let add_event line code time =
-  line.events <- line.events @ [Event(time, code)];
-  while time > line.last_cycle do line.last_cycle <- 16 + line.last_cycle done
+let add_event state code time =
+  if state.show then begin
+    let line = state.plot in
+    line.events <- line.events @ [Event(time, code)];
+    while time > line.last_cycle do line.last_cycle <- 16 + line.last_cycle done
+  end
 
 let add_result line res = line.result <- Printf.sprintf "%-50s" res
 
 let line_indent = "                                                                                                      "
-let line_background = Bytes.of_string "|                |                |                |                |"
-let line_separator = "|----------------|----------------|----------------|----------------|"
-let background_length = 64
+let line_background = Bytes.of_string "|                |                |                |                |                |"
+let line_separator = "|----------------|----------------|----------------|----------------|----------------|"
+let background_length = 80
 
-let print_plotline (line : plotline) =
-  if (line.count mod 16) = 0 then begin
-    if (line.count mod 32) = 0 then begin
-      let next_first_cycle = ref line.first_cycle in
-      let first_cycle = match line.events with
-        | Event(time,_) :: _ -> time
-        | _ -> line.first_cycle
-      in
-      while !next_first_cycle <= first_cycle - 16 do next_first_cycle := 16 + !next_first_cycle done;
-      if !next_first_cycle <> line.first_cycle then begin
-        Printf.printf "\n%s                  %s\n" line_indent line_separator;
-        line.first_cycle <- !next_first_cycle;
-      end
-    end;
-    Printf.printf "\n%s  %6d / %6d %s" line_indent line.count line.first_cycle line_separator;
+let print_plotline (line : plotline) with_perf =
+  if with_perf then begin
+    if (line.count mod 16) = 0 then begin
+      if (line.count mod 32) = 0 then begin
+        let next_first_cycle = ref line.first_cycle in
+        let first_cycle = match line.events with
+          | Event(time,_) :: _ -> time
+          | _ -> line.first_cycle
+        in
+        while !next_first_cycle <= first_cycle - 16 do next_first_cycle := 16 + !next_first_cycle done;
+        if !next_first_cycle <> line.first_cycle then begin
+          Printf.printf "\n%s                  %s\n" line_indent line_separator;
+          line.first_cycle <- !next_first_cycle;
+        end
+      end;
+      Printf.printf "\n%s  %6d / %6d %s" line_indent line.count line.first_cycle line_separator;
+    end
   end;
   line.count <- 1 + line.count;
   let s = Printf.sprintf "%08x : " line.iptr in
@@ -96,23 +105,23 @@ let print_plotline (line : plotline) =
   let numstring = String.concat "" numlist in
   let len_nums = String.length numstring in
   let void = String.make (30 - len_nums) ' ' in
-  let put_char time char = begin
-    let disp = time - line.first_cycle in
-    let bars = 1 + disp / 16 in
-    let pos = disp + bars in
-    if disp < background_length then Bytes.set line_background pos char
-  end in
-  let put_event ev = match ev with Event(time,code) -> put_char time code in
-  let zap_event ev = match ev with Event(time,_) -> put_char time ' ' in
-  List.iter put_event line.events;
-(*
-  let map_event ev = match ev with Event(time,code) -> Printf.sprintf "%c: %d" code time in
-  let eventlist = List.map map_event line.events in
-  let eventstring = String.concat "  " eventlist in
-*)
-  let total = String.concat "" [numstring; void; line.disasm; line.result; Bytes.unsafe_to_string line_background] in
-  Printf.printf "\n%s" total;
-  List.iter zap_event line.events
+  if with_perf then begin
+    let put_char time char = begin
+      let disp = time - line.first_cycle in
+      let bars = 1 + disp / 16 in
+      let pos = disp + bars in
+      if disp < background_length then Bytes.set line_background pos char
+    end in
+    let put_event ev = match ev with Event(time,code) -> put_char time code in
+    let zap_event ev = match ev with Event(time,_) -> put_char time ' ' in
+    List.iter put_event line.events;
+    let total = String.concat "" [numstring; void; line.disasm; line.result; Bytes.unsafe_to_string line_background] in
+    Printf.printf "\n%s" total;
+    List.iter zap_event line.events
+  end else begin
+    let total = String.concat "" [numstring; void; line.disasm; line.result] in
+    Printf.printf "\n%s" total;
+  end
 
 let set_show state = state.show <- true
 
@@ -472,15 +481,21 @@ let model_fetch_decode perf state =
   let rob_entry = Resource.acquire perf.rob (got_inst + perf.dec_lat) in
   Resource.use perf.fetch_start start (start + 1);
   Resource.use perf.fetch_decode_q start rob_entry;
-  add_event state.plot 'F' start;
-  add_event state.plot 'D' got_inst;
+  add_event state 'F' start;
+  add_event state 'D' got_inst;
   rob_entry
  (* FIXME if in-order, we need to wait for the actual execution resource to be allocated *)
+
+let model_decode_stall perf state f t_ino t_ooo =
+  if perf.ooo then 
+    Resource.use perf.rob f t_ooo
+  else
+    Resource.use perf.rob t_ino (t_ino + 1)
 
 let model_return perf state rs =
   let rob_entry = model_fetch_decode perf state in
   let ready = max perf.reg_ready.(rs) rob_entry in
-  let exec_start = Resource.acquire perf.alu ready in
+  let exec_start = Resource.acquire perf.branch ready in
   let time_retire = Resource.acquire perf.retire (exec_start + 2) in
   let addr = state.regs.(rs) in
   let predicted = Predictors.predict_return perf.rp (Int64.to_int addr) in
@@ -488,48 +503,47 @@ let model_return perf state rs =
     Resource.use_all perf.fetch_start (Resource.get_earliest perf.fetch_start + 1)
   else
     Resource.use_all perf.fetch_start (exec_start + 1);
-  Resource.use perf.alu exec_start (exec_start + 1);
+  Resource.use perf.branch exec_start (exec_start + 1);
   Resource.use perf.retire time_retire (time_retire + 1);
-  Resource.use perf.rob rob_entry time_retire;
-  add_event state.plot 'B' exec_start;
-  add_event state.plot 'C' time_retire
+  model_decode_stall perf state rob_entry exec_start time_retire;
+  add_event state 'B' exec_start;
+  add_event state 'C' time_retire
 
 let model_call perf state rd addr =
   let rob_entry = model_fetch_decode perf state in
-  let exec_start = Resource.acquire perf.alu rob_entry in
-  let time_retire = Resource.acquire perf.retire (exec_start + 2) in
+  let time_retire = Resource.acquire perf.retire (rob_entry + 2) in
   Predictors.note_call perf.rp (Int64.to_int addr);
   Resource.use_all perf.fetch_start (Resource.get_earliest perf.fetch_start + 1);
-  Resource.use perf.alu exec_start (exec_start + 1);
   Resource.use perf.retire time_retire (time_retire + 1);
-  Resource.use perf.rob rob_entry time_retire;
-  add_event state.plot 'B' exec_start;
-  add_event state.plot 'C' time_retire;
-  perf.reg_ready.(rd) <- exec_start + 1
+  model_decode_stall perf state rob_entry rob_entry time_retire;
+  (* A call is resolved during decode, but still must write its return address *)
+  add_event state 'w' (rob_entry + 1);
+  add_event state 'C' time_retire;
+  perf.reg_ready.(rd) <- rob_entry + 1
 
 let model_jmp perf state =
   let rob_entry = model_fetch_decode perf state in
-  let exec_start = Resource.acquire perf.alu rob_entry in
+  let exec_start = Resource.acquire perf.branch rob_entry in
   let time_retire = Resource.acquire perf.retire (exec_start + 2) in
   Resource.use_all perf.fetch_start (Resource.get_earliest perf.fetch_start + 1);
-  Resource.use perf.alu exec_start (exec_start + 1);
+  Resource.use perf.branch exec_start (exec_start + 1);
   Resource.use perf.retire time_retire (time_retire + 1);
-  add_event state.plot 'B' exec_start;
-  add_event state.plot 'C' time_retire;
-  Resource.use perf.rob rob_entry time_retire
+  model_decode_stall perf state rob_entry exec_start time_retire;
+  add_event state 'B' exec_start;
+  add_event state 'C' time_retire
 
 let model_nop perf state =
   let rob_entry = model_fetch_decode perf state in
   let exec_start = Resource.acquire perf.alu rob_entry in
   let time_retire = Resource.acquire perf.retire (exec_start + 2) in
+  model_decode_stall perf state rob_entry exec_start time_retire;
   Resource.use perf.alu exec_start (exec_start + 1);
-  Resource.use perf.retire time_retire (time_retire + 1);
-  Resource.use perf.rob rob_entry time_retire
+  Resource.use perf.retire time_retire (time_retire + 1)
 
 let model_cond_branch perf state from_ip to_ip taken ops_ready =
   let rob_entry = model_fetch_decode perf state in
   let ready = max rob_entry ops_ready in
-  let exec_start = Resource.acquire perf.alu ready in
+  let exec_start = Resource.acquire perf.branch ready in
   let exec_done = exec_start + 1 in
   let time_retire = Resource.acquire perf.retire (exec_done + 1) in
   let predicted = Predictors.predict_and_train perf.bp from_ip to_ip taken in
@@ -537,11 +551,11 @@ let model_cond_branch perf state from_ip to_ip taken ops_ready =
     Resource.use_all perf.fetch_start exec_done
   else if taken then
     Resource.use_all perf.fetch_start (Resource.get_earliest perf.fetch_start + 1);
-  Resource.use perf.alu exec_start (exec_done);
+  Resource.use perf.branch exec_start (exec_done);
   Resource.use perf.retire time_retire (time_retire + 1);
-  add_event state.plot 'B' exec_start;
-  add_event state.plot 'C' time_retire;
-  Resource.use perf.rob rob_entry time_retire
+  model_decode_stall perf state rob_entry exec_start time_retire;
+  add_event state 'B' exec_start;
+  add_event state 'C' time_retire
 
 let model_compute perf state rd ops_ready latency =
   let rob_entry = model_fetch_decode perf state in
@@ -551,10 +565,11 @@ let model_compute perf state rd ops_ready latency =
   let time_retire = Resource.acquire perf.retire (exec_done + 1) in
   Resource.use perf.alu exec_start (exec_done);
   Resource.use perf.retire time_retire (time_retire + 1);
-  Resource.use perf.rob rob_entry time_retire;
   perf.reg_ready.(rd) <- exec_done;
-  add_event state.plot 'X' exec_start;
-  add_event state.plot 'C' time_retire
+  model_decode_stall perf state rob_entry exec_start time_retire;
+  add_event state 'X' exec_start;
+  add_event state 'w' exec_done;
+  add_event state 'C' time_retire
 
 let model_mov_imm perf state rd = model_compute perf state rd 0 1
 let model_leaq perf state rd ops_ready = model_compute perf state rd ops_ready 1
@@ -578,10 +593,10 @@ let model_store perf state rd rs addr =
   Resource.use perf.agen agen_start agen_done;
   Resource.use perf.dcache access_start (access_start + 1);
   Resource.use perf.retire time_retire (time_retire + 1);
-  add_event state.plot 'A' agen_start;
-  add_event state.plot 'V' access_start;
-  add_event state.plot 'C' time_retire;
-  Resource.use perf.rob rob_entry time_retire
+  model_decode_stall perf state rob_entry agen_start time_retire;
+  add_event state 'A' agen_start;
+  add_event state 'V' access_start;
+  add_event state 'C' time_retire
 
 let model_load perf state rd rs addr =
   let ops_ready = perf.reg_ready.(rs) in
@@ -591,15 +606,15 @@ let model_load perf state rd rs addr =
   let agen_done = agen_start + 1 in
   let access_start = Resource.acquire perf.dcache agen_done in
   let data_ready = Cache.cache_read perf.d addr access_start in
-  let access_done = access_start + 1 in
-  let time_retire = Resource.acquire perf.retire (access_done + 1) in
+  let time_retire = Resource.acquire perf.retire (data_ready + 1) in
   Resource.use perf.agen agen_start agen_done;
   Resource.use perf.dcache access_start (access_start + 1);
   Resource.use perf.retire time_retire (time_retire + 1);
-  Resource.use perf.rob rob_entry time_retire;
-  add_event state.plot 'A' agen_start;
-  add_event state.plot 'L' access_start;
-  add_event state.plot 'C' time_retire;
+  model_decode_stall perf state rob_entry agen_start time_retire;
+  add_event state 'A' agen_start;
+  add_event state 'L' access_start;
+  add_event state 'w' data_ready;
+  add_event state 'C' time_retire;
   perf.reg_ready.(rd) <- data_ready
 
 
@@ -633,10 +648,11 @@ let run_inst perf state =
       let ret_addr = state.regs.(rs) in (* return instruction *)
       model_return perf state rs;
       state.ip <- ret_addr;
+      if state.show then add_result state.plot "";
       if ret_addr <= Int64.zero then begin
           log_ip state; (* final IP value should be added to trace *)
           state.running <- false;
-          if state.show then 
+          if state.show then
             state.message <- Some (Printf.sprintf "\nTerminating. Return to address %Lx\n" ret_addr)
         end
     end
@@ -662,7 +678,7 @@ let run_inst perf state =
   | 1,7 -> model_alu_reg perf state rd rs; wr_reg state rd (Int64.shift_left state.regs.(rd) (Int64.to_int state.regs.(rs)))
   | 1,8 -> model_alu_reg perf state rd rs; wr_reg state rd (Int64.shift_right_logical state.regs.(rd) (Int64.to_int state.regs.(rs)))
   | 1,9 -> model_mul_reg perf state rd rs; wr_reg state rd (Int64.mul state.regs.(rd) state.regs.(rs))
-  | 2,1 -> model_mov_reg perf state rs rd; wr_reg state rd state.regs.(rs)
+  | 2,1 -> model_mov_reg perf state rd rs; wr_reg state rd state.regs.(rs)
   | 3,1 -> begin
       model_load perf state rd rs state.regs.(rs);
       wr_reg state rd (rd_mem state state.regs.(rs))
@@ -683,6 +699,7 @@ let run_inst perf state =
       | 4,0xF -> begin
           terminate_output state; 
           model_jmp perf state;
+          if state.show then add_result state.plot "";
           state.ip <- qimm (* jmp *)
         end
       | 4,_ -> begin
@@ -690,6 +707,7 @@ let run_inst perf state =
           let taken = eval_condition lo state.regs.(rd) state.regs.(rs) in
           let ops_ready = max perf.reg_ready.(rd) perf.reg_ready.(rs) in
           model_cond_branch perf state (Int64.to_int state.ip) imm taken ops_ready;
+          if state.show then add_result state.plot (if taken then "<T>" else "<NT>");
           if taken then state.ip <- qimm
         end
       | 5,0 -> model_alu_imm perf state rd; wr_reg state rd (Int64.add state.regs.(rd) qimm)
@@ -739,6 +757,7 @@ let run_inst perf state =
       let taken = eval_condition lo state.regs.(rd) qimm in
       terminate_output state;
       model_cond_branch perf state (Int64.to_int state.ip) imm taken perf.reg_ready.(rd);
+      if state.show then add_result state.plot (if taken then "<T>" else "<NT>");
       if (taken) then state.ip <- q_a_imm
     end
   | _ -> raise (UnknownInstructionAt (Int64.to_int state.ip))
@@ -749,7 +768,7 @@ let run perf state =
   while state.running && state.ip >= Int64.zero do
     run_inst perf state;
     if state.show then begin
-      print_plotline state.plot;
+      print_plotline state.plot perf.perf_model;
       match state.message with
       | Some(s) -> Printf.printf "%s" s
       | None -> ()

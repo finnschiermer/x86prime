@@ -36,4 +36,13 @@ Her er kun en enkelt fase, kaldet `X` for eXecute, da alle instruktioner kan udf
 
 Hvis vi ønsker at finde denne arkitekturs CPI, kan man gøre dette ved at tælle antallet af instruktioner; i ovenstående tilfælde altså 4 clock perioder for 4 instruktioner, eller en CPI på 1.
 
+
+## CPI
+Vi vil hele vejen gennem bruge CPI, som et mål for ydelsen af et program. CPI står for Clocks cycles Per Instruction, altså et mål hvor mange clock perioder en udførsel af et specifikt program tager.
+Det er dog vigtigt at notere præcist hvad dette betyder. For det første siger det meget lidt om hvordan en specifik arkitektur generelt opfører sig. Det er for et specifikt program, som måske kan representere en klasse af programmer, men man er nødt til at have meget stor benchmark af mange forskellige programmer for at sige noget generelt. 
+For det andet 
+
+Det er også vigtigt et noteret at de plots vi laver starter på hvad vi kan kalde en "kold" maskine. Vores plots vil ikke have nogen 
+
+
 &nbsp;

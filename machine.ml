@@ -74,7 +74,7 @@ let add_event state code time =
 
 let add_result line res = line.result <- Printf.sprintf "%-50s" res
 
-let line_indent = "                                                                                                      "
+let line_indent = "                                                                                                                "
 let line_background = Bytes.of_string "|                |                |                |                |                |"
 let line_separator = "|----------------|----------------|----------------|----------------|----------------|"
 let background_length = 80
@@ -104,7 +104,7 @@ let print_plotline (line : plotline) with_perf =
   let numlist = List.flatten [[s]; (List.map map_ops line.ops); (List.map map_imm line.ims)] in
   let numstring = String.concat "" numlist in
   let len_nums = String.length numstring in
-  let void = String.make (30 - len_nums) ' ' in
+  let void = String.make (40 - len_nums) ' ' in
   if with_perf then begin
     let put_char time char = begin
       let disp = time - line.first_cycle in

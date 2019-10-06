@@ -130,6 +130,10 @@ addq $8,r10               F------------XW    -- depend(X,r10), produce(W,r10)
 
 Det man især kan tage med fra ovenstående eksempel, er hvor mange instruktioner, som er i gang med at blive indlæst og hvor lang tid denne del tager sammenlignet med selve beregningen.
 
+## Kontrolafhængigheder
+
+MKT skriv her.
+
 ## Køer
 
 TBD

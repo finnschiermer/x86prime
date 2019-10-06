@@ -40,7 +40,7 @@ Det ses af faserne. Her har vi indsat to anonyme faser `-` efter `F` og `M` for 
 Vi kan nu sætte de udvidede specifikationer for faserne som
 
 * Tilgængelige ressourcer: `F:2`, `D:2`, `X:2`, `M:1`, `W:2`
-* Antal instruktioner underberegning: `F-D: 4`, `D-X: 2`, `M-W: 2`
+* Antal instruktioner under beregning: `F-D: 4`, `D-X: 2`, `M-W: 2`
 * `inorder(F,D,X,M,W)`
 
 Vi har det samme antal ressourcer som i vores superskalar arkitektur, men kan nu have 4 ekstra instruktioner i de anonyme faser mellem `F` og `D`; altså i gang med at blive indhentet. Der er 2 ekstra mellem `D` og `X`, samt 2 ekstra mellem `M` og `W`. Det er implicit at der ikke kan være nogen mellem `X` og `M` da det her kun tager en clock periode at beregne en værdi.
@@ -72,7 +72,7 @@ Nu begynder der at ske en del.
 
 
 
-## Abstraktion, samlet indlæsning afkodning
+## Abstraktion, samlet indlæsning og afkodning
 
 Anonyme faser kan også gøre det nemmere at se bort fra ting der ikke har interesse.
 For eksempel kan vi udelade afkodningstrinnet fra vores beskrivelse, da det altid følger direkte efter indhentning og har samme antal ressourcer. I stedet kan vi lave vores indlæsningstrin det længere og få samme afvikling:
@@ -136,7 +136,17 @@ MKT skriv her.
 
 ## Køer
 
-TBD
+Ofte indgår køer af instruktioner i en mikroarkitektur. Ikke så tit i en simpel skalar pipeline,
+men ofte i superskalare pipelines. For eksempel er det ofte en fordel med en kø mellem instruktionshentning
+og afkodning. For maskiner med variabel-længde instruktioner kan det være nødvendigt fordi afkoderen
+har en begræsning på hvor mange instruktioner den kan håndtere, mens instruktionshentningen har en
+begrænsning udtrykt i bytes eller cache-blokke. Dette mis-match afføder et behov for at have en eller
+flere bytes/instruktioner i kø mellem de to trin.
+
+Vi modellerer en kø som et antal anonyme faser.
+
+For eksempel kan vi udtrykke en kø mellem F og D med plads til fire instruktioner som en resource begrænsning: "F-D: 4"
+
 
 ## Cache-miss
 

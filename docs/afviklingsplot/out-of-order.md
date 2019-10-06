@@ -65,7 +65,7 @@ der læser fra lageret sammenligne deres adresse med udestående skrivninger
 i skrive-køen, og hvis adressen matcher kan den tilsvarende værdi hentes
 fra skrive-køen. Instruktioner der skriver til lageret kan (skal) indsætte
 deres adresse i skrive-køen selvom den værdi der skal skrives endnu ikke
-er beregnet. Det tidspunkt hvor værdien kopieres til skrive-køen markeres ` V`.
+er beregnet. Det tidspunkt hvor værdien kopieres til skrive-køen markeres `V`.
 
 ### En lille out-of-order model
 

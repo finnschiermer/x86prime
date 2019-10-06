@@ -150,6 +150,23 @@ For eksempel kan vi udtrykke en kø mellem F og D med plads til fire instruktion
 
 ## Cache-miss
 
-TBD
+Vi modellerer lager-hierarkiet ved at holde rede på indholdet af systemets cache(s) instruktion
+for instruktion. Cache-miss inkluderes i modellen alene derved at det påvirker latens-tiden for
+de instruktioner, der læser fra lageret. Dette er en voldsom forsimpling. Vi ser således bort fra
+en række typiske begrænsninger:
+
+ * I en helt simpel pipeline vil man måske fryse selve pipelinen indtil data er ankommet.
+   Det vil have dårligere ydeevne, end blot at forøge latenstiden, som vi gør.
+ * Der kan kun være et begrænset antal overlappende læsninger i gang samtidigt.
+ * Der kan kun være et begrænset antal snavsede blokke som er smidt ud på et niveau
+   af hierarkiet og venter i kø på at blive skrevet til det underliggende niveau
+ * Der kan være resource konflikter ved tilgang til en cache, f.eks. kan man måske
+   ikke læse fra cachen, samtidigt med at data der hentes i respons på et tidligere
+   miss ankommer og skrives til cachen.
+
+Det ser vi alt sammen bort fra.
+
+Der antages copy-back caching med LRU replacement.
+
 
 &nbsp;

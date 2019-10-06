@@ -43,7 +43,7 @@ Det er vigtigt at vi overholde begrænsningerne. For at tjekke det ser vi at:
 * første begrænsning bliver overholdt, da alle linier i plottet indeholder alle fem trin, og
 * anden begrænsning bliver overholdt da hver søjle (clock periode) kun indeholder hvert trin en gang.
 
-Hvis vi prøver at udregne ydeevnen for programmet, kan vi se at det samlet bruger 9 clock perioder: antallet af instruktioner + antallet af trin - 1. Hvis vi sammenligner med vores enkelt-cyklus maskine, er dette næsten så mange clock perioder, men en periode vil også være signifikant kortere; dog ikke så lav som en femtedel.
+Hvis vi prøver at udregne ydeevnen for programmet, kan vi se at det samlet bruger 9 clock perioder: dette svare til antallet af instruktioner (5) + antallet af trin minus 1. Vi kan derefter udregne `CPI = 9/5 = 1,8`. Hvis vi sammenligner med vores enkelt-cyklus maskine (som vi have en `CPI = 1`, er dette næsten dobbelt så mange clock perioder. Men en periode på den simple pipeline maskine vil også være signifikant kortere; det kan være svært at sige præcist hvor meget, men et kvalificeret gæt vil være ca. 1/3. Dette vil give en relativ CPI for enkeltcyklus maskinen på 3; altså enkeltcyklus maskinen kan udføre en instruktion på 3 clock perioder på vores pipeline maskine. Dette vil gøre at denne maskine kun tager `1,8/3 = 60 %` af tiden for at udføre programmet.
 
 
 ## Latenstid af faser
@@ -99,7 +99,7 @@ Igen ser vi at:
 * alle linier i plottet indeholder alle fem trin mindst en gang, og
 * hver søjle (clock periode) kun indeholder hvert trin en gang.
 
-Vi kan igen prøver at udregne ydeevnen for programmet og se at det samlet bruger 13 clock perioder. Igen bliver det flere perioder hvis vi sammenligner med den simple pipeline, men igen kan vi forvente en kortere clock periode.
+Vi kan igen prøver at udregne ydeevnen for programmet og se at det samlet bruger 13 clock perioder for de 5 instruktioner; altså en `CPI = 13/5 = 2,6`. Igen bliver det flere perioder hvis vi sammenligner med den simple pipeline, men igen kan vi forvente en kortere clock periode; nok mindst dobbelt så hurtig.
 
 
 ## Data afhængigheder og forwarding
@@ -169,7 +169,6 @@ Lad os nu definere det korrekte afviklingspot for eksemplet. Først, lad os dog 
 
 
 * Simpel aritmetik `op  a b`:    `delay(X)=1`
-* Multiplikation   `mul a b`:    `delay(X)=4`
 * Læsning          `movq (a),b`: `delay(M)=2`
 * Skrivning        `movq b,(a)`: `delay(M)=2`
 * Alle øvrige faser taget har en latenstid på 1
@@ -186,6 +185,8 @@ subq $1,r12            FDDXMW    --
 Bemærk hvorledes instruktion nr. 2 bliver forsinket en clock periode i sin `D`-fase,
 fordi den afhænger af `r11` som bliver produceret af den forudgående instruktion
 der har en latenstid på 2 clock-perioder.
+
+Dette vil give en `CPI = 12/5 = 2,4`.
 
 ## In-order udførsel af instruktioner
 Men hov! Vi har lige fundet ud af at sidste instruktion ikke har dataafhængigheder til de øvrige, så hvorfor kan vi ikke spare en clock periode ved at lave:
@@ -209,14 +210,15 @@ Vi har overholdt dette i tidligere eksempler. Vi kan tjekke det ved at når vi l
 I det her tilfælde kan vores oversætter forbedre situationen, ved at flytte sidste instruktion frem. Dermed kan vi opnå ovenstående udførsel:
 
 ~~~ text
-                 012345678901    -- Beskrivelse
+                 01234567890     -- Beskrivelse
 movq (r10),r11   FDXMMW          -- produce(W,r11)
 subq $1,r12       FDXXMW         --
 addq $100,r11      FDDXMW        -- depend(X,r11), produce(M,r11), stall i D
-movq r11,(r10)      FFFDXMMW     -- Stall i F, depend(X,r11)
-addq $8,r10            FDXXMW    -- Forsinket F
+movq r11,(r10)      FFDXMMW      -- Stall i F, depend(X,r11)
+addq $8,r10           FDXXMW     -- Forsinket F
 ~~~
 
+Vi kan altså nøjes med at benytte 11 clock perioder og får dermed en `CPI = 11/5 = 2,2`.
 
 ## Kontrolafhængigheder
 Den opmærksomme læser har nok lagt mærke til at alle tidligere programmer og mikroarkitekturer har manglet noget. Vi har endnu kun snakket om sekventielle instruktioner og ikke overvejet kontrolinstruktioner. Det skyldes at det gør vores plots og model signifikant mere kompliceret og senere udvidelser vil faktisk gøre det nemmere.

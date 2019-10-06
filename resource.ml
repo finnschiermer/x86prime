@@ -51,7 +51,7 @@ let acquire resource earliest =
   !first_free
 
 let use resource start finished =
-(*  Printf.printf "USE %s %d %d\n" resource.name start finished; *)
+(*  Printf.printf "USE %s %d %d (%d)\n" resource.name start finished (finished - start); *)
   let timespan = Array.length resource.window in
   while finished >= resource.window_start + timespan do
     move_window resource
@@ -60,7 +60,8 @@ let use resource start finished =
     while resource.window_start < start do
       move_window resource
     done;
-  if start < resource.window_start then raise (Too_short_timespan resource.name);
+  if start < resource.window_start then 
+    raise (Too_short_timespan (Printf.sprintf "%s:%d - %d" resource.name start finished));
   for t = start to finished - 1 do
     let index = t mod timespan in
     if resource.window.(index) > 0 then

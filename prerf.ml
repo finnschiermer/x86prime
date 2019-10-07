@@ -77,7 +77,7 @@ let run entry =
       | Some(addr) -> begin
               Machine.set_ip !machine addr;
               let l2 = Cache.cache_create !l2_idx_bits !l2_blk_bits !l2_assoc !l2_latency (MainMemory !mem_latency) in
-              let num_alus = if !pipe_width > 2 then !pipe_width - 1 else !pipe_width in
+              let num_alus = if !ooo && !pipe_width > 2 then !pipe_width - 1 else !pipe_width in
               let id_latency = (!i_latency + !dec_latency) in
               let fd_queue_size = id_latency * !pipe_width in
               let alu_resource = Resource.create "arithmetic" (not !ooo) num_alus 1000 in
@@ -97,11 +97,10 @@ let run entry =
                   d = Cache.cache_create !d_idx_bits !d_blk_bits !d_assoc !d_latency (Cache l2);
                   fetch_start = Resource.create "fetch-start" true !pipe_width 1000;
                   fetch_decode_q = Resource.create "fetch-decode" true fd_queue_size 10000;
-                  rob = if !ooo then Resource.create "reorder buffer" true 128 10000
-                        else Resource.create "exec" true num_alus 1000;
+                  rob = Resource.create "reorder buffer" true 128 10000;
                   alu = alu_resource;
                   agen = if !ooo then Resource.create "agen" true 1 1000 else alu_resource;
-                  branch = Resource.create "branch-resolver" true 1 1000;
+                  branch = if !ooo then Resource.create "branch-resolver" true 1 1000 else alu_resource;
                   dcache = Resource.create "dcache" (not !ooo) 1 1000;
                   retire = Resource.create "retire" true !pipe_width 1000;
                   reg_ready = Array.make 16 0;

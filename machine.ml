@@ -478,7 +478,11 @@ let model_fetch_decode perf state =
   let start = Resource.acquire perf.fetch_start 0 in
   let start = Resource.acquire perf.fetch_decode_q start in
   let got_inst = Cache.cache_read perf.i state.ip start in
-  let rob_entry = Resource.acquire perf.rob (got_inst + perf.dec_lat) in
+  let rob_entry = if perf.ooo then
+    Resource.acquire perf.rob (got_inst + perf.dec_lat)
+  else
+    Resource.acquire perf.rob (Resource.acquire perf.alu (got_inst + perf.dec_lat)) 
+  in
   Resource.use perf.fetch_start start (start + 1);
   Resource.use perf.fetch_decode_q start rob_entry;
   add_event state 'F' start;
@@ -490,7 +494,7 @@ let model_decode_stall perf state f t_ino t_ooo =
   if perf.ooo then 
     Resource.use perf.rob f t_ooo
   else
-    Resource.use perf.rob t_ino (t_ino + 1)
+    Resource.use perf.rob f t_ooo (* t_ino (t_ino + 1) *)
 
 let model_return perf state rs =
   let rob_entry = model_fetch_decode perf state in

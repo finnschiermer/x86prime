@@ -60,8 +60,9 @@ let use resource start finished =
     while resource.window_start < start do
       move_window resource
     done;
-  if start < resource.window_start then 
-    raise (Too_short_timespan (Printf.sprintf "%s:%d - %d" resource.name start finished));
+  let start = max start resource.window_start in
+(*  if start < resource.window_start then 
+    raise (Too_short_timespan (Printf.sprintf "%s:%d - %d" resource.name start finished)); *)
   for t = start to finished - 1 do
     let index = t mod timespan in
     if resource.window.(index) > 0 then

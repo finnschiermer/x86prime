@@ -487,14 +487,10 @@ let model_fetch_decode perf state =
   Resource.use perf.fetch_decode_q start rob_entry;
   add_event state 'F' start;
   add_event state 'D' got_inst;
+  if perf.ooo then add_event state 'Q' (rob_entry - 3);
   rob_entry
- (* FIXME if in-order, we need to wait for the actual execution resource to be allocated *)
 
-let model_decode_stall perf state f t_ino t_ooo =
-  if perf.ooo then 
-    Resource.use perf.rob f t_ooo
-  else
-    Resource.use perf.rob f t_ooo (* t_ino (t_ino + 1) *)
+let model_decode_stall perf state f t_ino t_ooo = Resource.use perf.rob f t_ooo
 
 let model_return perf state rs =
   let rob_entry = model_fetch_decode perf state in
@@ -510,8 +506,10 @@ let model_return perf state rs =
   Resource.use perf.branch exec_start (exec_start + 1);
   Resource.use perf.retire time_retire (time_retire + 1);
   model_decode_stall perf state rob_entry exec_start time_retire;
+  if perf.ooo then add_event state 's' (exec_start - 2);
+  if perf.dec_lat > 2 then add_event state 'r' (exec_start - 1);
   add_event state 'B' exec_start;
-  add_event state 'C' time_retire
+  if perf.ooo then add_event state 'C' time_retire
 
 let model_call perf state rd addr =
   let rob_entry = model_fetch_decode perf state in
@@ -522,7 +520,7 @@ let model_call perf state rd addr =
   model_decode_stall perf state rob_entry rob_entry time_retire;
   (* A call is resolved during decode, but still must write its return address *)
   add_event state 'w' (rob_entry + 1);
-  add_event state 'C' time_retire;
+  if perf.ooo then add_event state 'C' time_retire;
   perf.reg_ready.(rd) <- rob_entry + 1
 
 let model_jmp perf state =
@@ -534,7 +532,7 @@ let model_jmp perf state =
   Resource.use perf.retire time_retire (time_retire + 1);
   model_decode_stall perf state rob_entry exec_start time_retire;
   add_event state 'B' exec_start;
-  add_event state 'C' time_retire
+  if perf.ooo then add_event state 'C' time_retire
 
 let model_nop perf state =
   let rob_entry = model_fetch_decode perf state in
@@ -558,8 +556,10 @@ let model_cond_branch perf state from_ip to_ip taken ops_ready =
   Resource.use perf.branch exec_start (exec_done);
   Resource.use perf.retire time_retire (time_retire + 1);
   model_decode_stall perf state rob_entry exec_start time_retire;
+  if perf.ooo then add_event state 's' (exec_start - 2);
+  if perf.dec_lat > 2 then add_event state 'r' (exec_start - 1);
   add_event state 'B' exec_start;
-  add_event state 'C' time_retire
+  if perf.ooo then add_event state 'C' time_retire
 
 let model_compute perf state rd ops_ready latency =
   let rob_entry = model_fetch_decode perf state in
@@ -571,9 +571,11 @@ let model_compute perf state rd ops_ready latency =
   Resource.use perf.retire time_retire (time_retire + 1);
   perf.reg_ready.(rd) <- exec_done;
   model_decode_stall perf state rob_entry exec_start time_retire;
+  if perf.ooo then add_event state 's' (exec_start - 2);
+  if perf.dec_lat > 2 then add_event state 'r' (exec_start - 1);
   add_event state 'X' exec_start;
   add_event state 'w' exec_done;
-  add_event state 'C' time_retire
+  if perf.ooo then add_event state 'C' time_retire
 
 let model_mov_imm perf state rd = model_compute perf state rd 0 1
 let model_leaq perf state rd ops_ready = model_compute perf state rd ops_ready 1
@@ -598,9 +600,11 @@ let model_store perf state rd rs addr =
   Resource.use perf.dcache access_start (access_start + 1);
   Resource.use perf.retire time_retire (time_retire + 1);
   model_decode_stall perf state rob_entry agen_start time_retire;
+  if perf.ooo then add_event state 's' (agen_start - 2);
+  if perf.dec_lat > 2 then add_event state 'r' (agen_start - 1);
   add_event state 'A' agen_start;
   add_event state 'V' access_start;
-  add_event state 'C' time_retire
+  if perf.ooo then add_event state 'C' time_retire
 
 let model_load perf state rd rs addr =
   let ops_ready = perf.reg_ready.(rs) in
@@ -615,10 +619,12 @@ let model_load perf state rd rs addr =
   Resource.use perf.dcache access_start (access_start + 1);
   Resource.use perf.retire time_retire (time_retire + 1);
   model_decode_stall perf state rob_entry agen_start time_retire;
+  if perf.ooo then add_event state 's' (agen_start - 2);
+  if perf.dec_lat > 2 then add_event state 'r' (agen_start - 1);
   add_event state 'A' agen_start;
   add_event state 'L' access_start;
   add_event state 'w' data_ready;
-  add_event state 'C' time_retire;
+  if perf.ooo then add_event state 'C' time_retire;
   perf.reg_ready.(rd) <- data_ready
 
 

@@ -146,3 +146,37 @@ The translation from x86 to prime is not perfect.
 
 In short, we advise you to check the translation result for correctness instead
 of blindly trusting it.
+
+## Performance modelling
+
+The "prerf" tool runs a program much like "prun", but includes a performance model.
+
+The model include a selection of branch predictors, a return predictor and 2 configurable
+levels of cache.
+
+It supports 3 different microarchitectures:
+
+ * A simle scalar pipeline.
+ * A 3-way in-order superscalar pipeline.
+ * A 3-way out-of-order (superscalar) pipeline.
+
+There are separate primary caches for instruction and data:
+
+ * Access latency i 3 cycles, fully pipelined.
+ * Size 16K, 4-way associative, 32-byte blocks
+
+The primary caches are backed by a secondary cache:
+
+ * Access latency 12 cycles (on top of the 3 cycles in L1)
+ * Size 128K, 4-way associative, 32-byte blocks
+
+The main memory is an additional 100 cycles away.
+
+The "prerf" tool support generation of execution graphs (da: "afviklingsplot").
+
+Some options:
+
+ * "-show" display execution graph
+ * "-help" show list of options. Use this to see options for selecting
+   performance model details.
+ * "-print_config" show configuration of microarchitecture and memory hierachy

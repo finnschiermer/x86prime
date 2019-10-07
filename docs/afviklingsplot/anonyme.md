@@ -130,22 +130,17 @@ addq $8,r10               F------------XW    -- depend(X,r10), produce(W,r10)
 
 Det man især kan tage med fra ovenstående eksempel, er hvor mange instruktioner, som er i gang med at blive indlæst og hvor lang tid denne del tager sammenlignet med selve beregningen.
 
-## Kontrolafhængigheder
-
-MKT skriv her.
-
 ## Køer
 
 Ofte indgår køer af instruktioner i en mikroarkitektur. Ikke så tit i en simpel skalar pipeline,
 men ofte i superskalare pipelines. For eksempel er det ofte en fordel med en kø mellem instruktionshentning
 og afkodning. For maskiner med variabel-længde instruktioner kan det være nødvendigt fordi afkoderen
-har en begræsning på hvor mange instruktioner den kan håndtere, mens instruktionshentningen har en
-begrænsning udtrykt i bytes eller cache-blokke. Dette mis-match afføder et behov for at have en eller
+har en begrænsning på hvor mange instruktioner den kan håndtere, mens instruktionshentningen har en
+begrænsning udtrykt i bytes eller cache-blokke. Dermed kan man undgå at indlæse samme instruktion flere gange. Dette mis-match afføder et behov for at have en eller
 flere bytes/instruktioner i kø mellem de to trin.
 
-Vi modellerer en kø som et antal anonyme faser.
-
-For eksempel kan vi udtrykke en kø mellem F og D med plads til fire instruktioner som en resource begrænsning: "F-D: 4"
+Vi vil modellerer en kø som et antal anonyme faser.
+For eksempel kan vi udtrykke en kø mellem F og D med plads til fire instruktioner som en ressource begrænsning: "F-D: 4"
 
 
 ## Cache-miss
@@ -157,16 +152,22 @@ en række typiske begrænsninger:
 
  * I en helt simpel pipeline vil man måske fryse selve pipelinen indtil data er ankommet.
    Det vil have dårligere ydeevne, end blot at forøge latenstiden, som vi gør.
- * Der kan kun være et begrænset antal overlappende læsninger i gang samtidigt.
- * Der kan kun være et begrænset antal snavsede blokke som er smidt ud på et niveau
-   af hierarkiet og venter i kø på at blive skrevet til det underliggende niveau
- * Der kan være resource konflikter ved tilgang til en cache, f.eks. kan man måske
+ * Der kan være et begrænset antal overlappende læsninger i gang samtidigt.
+ * Der kan være et begrænset antal snavsede blokke som er smidt ud på et niveau
+   af hierarkiet og venter i kø på at blive skrevet til det underliggende niveau.
+ * Der kan være ressource konflikter ved tilgang til en cache; f.eks. kan man måske
    ikke læse fra cachen, samtidigt med at data der hentes i respons på et tidligere
    miss ankommer og skrives til cachen.
 
 Det ser vi alt sammen bort fra.
 
 Der antages copy-back caching med LRU replacement.
+
+
+## Kontrolafhængigheder
+
+MKT skriv her.
+
 
 
 &nbsp;

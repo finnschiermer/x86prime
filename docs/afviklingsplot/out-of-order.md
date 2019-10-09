@@ -19,12 +19,12 @@ Overvej afviklingen i følgende simple superskalar pipeline, hvor
 
 ~~~
                  01234567      -- Bemærkning
-movq (r10),r11   F--XM-W       -- produce(W,r11)
+movq (r10),r11   F--XM-W       -- produce(M+1,r11)
 addq $100,r11    F-----XW      -- depend(X,r11), stall F til r11 er klar
 movq r9,(r14)     F--XM        -- ingen afhængighed, så hvorfor vente?  <---- BEMÆRK!
 addq $1,r10       F--XW        -- ingen afhængighed
 ~~~
-Bemærk at instruktion nummer 3 og 4 her får sin X-fase en clock periode tidligere end instruktionen
+Bemærk at instruktion nummer 3 og 4 her får sin `X`-fase en clock periode tidligere end instruktionen
 før. På en måde overhaler instruktion nummer 3 og 4 altså instruktion nummer 2.
 
 Det er ikke noget som bryder med antallet af tilgængelige ressourcer i vores superskalar maskine. Vi kan tælle faserne i søjlerne og alt er korrekt. Dog husker vi nu reglen for `inorder(F,D,X,M,W)`, som vi glemt at tage med. For at tjekke den skal vi sikre at faserne i hver søjle er ordnet modsat oppefra og ned. Dette er oplagt ikke tilfældet i clock periode 4 og 5 hvor vi jo ser det to instruktioner har overhalet.

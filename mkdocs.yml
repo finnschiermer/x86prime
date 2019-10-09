@@ -8,7 +8,7 @@ nav:
         - Superskalar: afviklingsplot/superscalar.md
         - Avanceret pipeline, anonyme faser: afviklingsplot/anonyme.md
         - Out-of-order: afviklingsplot/out-of-order.md
-        # - Kontrol afhængigheder: afviklingsplot/kontrol.md
+        - Kontrol afhængigheder: afviklingsplot/kontrol.md
 theme: readthedocs
 extra_css:
     - css/extra.css

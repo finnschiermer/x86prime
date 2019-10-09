@@ -168,8 +168,7 @@ Der antages copy-back caching med LRU replacement.
 
 ## Kontrolafhængigheder
 
-MKT skriv her.
-
+Se [Kontrolafhængighed](kontrol.md)
 
 
 &nbsp;

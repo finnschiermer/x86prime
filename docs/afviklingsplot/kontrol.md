@@ -27,65 +27,70 @@ inorder(B)
 Her er nogle mulige regler for en out-of-order maskine som beskrevet ovenfor
 ~~~
 Instruktion  Taget  Forudsagt    Effekt
-Call         ja     ja           NextF.time = F.time + 2
-Ret          ja     ja           NextF.time = F.time + 2
-             ja     nej          NextF.time = B.time + 1
-CBcc         nej    ja           - (ingen)
-             nej    nej          NextF.time = B.time + 1
-             ja     ja           NextF.time = F.time + 2
-             ja     nej          NextF.time = F.time + 2
+Call         ja     ja           produce(F+2,pc)
+Ret          ja     ja           produce(F+2,pc)
+             ja     nej          produce(B+1,pc)
+CBcc         nej    ja           - (ikke muligt)
+             nej    nej          produce(B+1,pc)
+             ja     ja           produce(F+2,pc)
+             ja     nej          produce(F+2,pc)
 ~~~
+Husk at `pc` er vores specielle register til at pege på næste instruktion, så ovenstående peger på hvor hurtigt næste instruktion kan være klar.
+
+
 Herunder ses to gennemløb af en indre løkke, hvor hop forudsiges korrekt.
 ~~~
                        012345678901234567
-loop: movq (r10),r11   F----QAM--C            r11.time = 10
-      addq $100,r11    F----Q----XC           r11.time = 11
-      movq r11,(r10)    F----QAM--VC          X.time >= r10.time, V.time >= r11.time
-      addq $8,r10       F----QX----C          r10.time = 8
-      cbl  r10,r12,loop  F----QB----C             NextF.time = 4 (forudsagt korrekt taget)
-loop: movq (r10),r11       F----QAM--C            r11.time = 14
-      addq $100,r11        F----Q----XC           r11.time = 15
-      movq r11,(r10)        F----QAM--VC          X.time >= r10.time, V.time >= r11.time
-      addq $8,r10           F----QX----C          r10.time = 12
+loop: movq (r10),r11   F----QAM--C            -- produce(M+2,r11)
+      addq $100,r11    F----Q----XC           -- depend(X,r11), produce(X,r11)
+      movq r11,(r10)    F----QAM--VC          -- depend(A,r10), depend(V,r11), produce(V,r11)
+      addq $8,r10       F----QX----C          -- produce(X,r10)
+      cbl  r10,r12,loop  F----QB----C            -- produce(F+2, pc) (forudsagt korrekt taget)
+loop: movq (r10),r11       F----QAM--C           -- produce(M+2,r11)
+      addq $100,r11        F----Q----XC          -- depend(X,r11), produce(X,r11)
+      movq r11,(r10)        F----QAM--VC         -- depend(A,r10), depend(V,r11), produce(V,r11)
+      addq $8,r10           F----QX----C         -- produce(X,r10)
       cbl  r10,r12,loop      F----QB----C
 ~~~
-Ydeevne: 5/4 IPC
+Ydeevne: 5/4 IPC. Læg mærke til at hoppet i denne eksekvering bliver taget korrekt og næste instruktion bliver derfor kun forsinket 2 clock perioder.
+
+
 
 På grund af omkostningen ved hop vil en oversætter ofte rulle en løkke-krop
 ud en eller flere gange. Herunder ses effekten af en enkelt udrulning
 
 ~~~
                        012345678901234567
-loop: movq (r10),r11   F----QAM--C            r11.time = 10
-      addq $100,r11    F----Q----XC           r11.time = 11
-      movq r11,(r10)    F----QAM--VC          X.time >= r10.time, V.time >= r11.time
-      addq $8,r10       F----QX----C          r10.time = 8
-      cbgt  r10,r12,exit F----QB----C         forudsagt korrekt ikke taget
-      movq (r10),r11     F----QAM---C         r11.time = 13
-      addq $100,r11       F----Q----XC        r11.time = 14
-      movq r11,(r10)      F----QAM--VC        X.time >= r10.time, V.time >= r11.time
-      addq $8,r10          F----QX----C       r10.time = 11
-      cbl  r10,r12,loop    F----QB----C       NextF.time = 6 (forudsagt korrekt taget)
-loop: movq (r10),r11         F----QAM--C      r11.time = 16
+loop: movq (r10),r11   F----QAM--C            -- produce(M+2,r11)
+      addq $100,r11    F----Q----XC           -- depend(X,r11), produce(X,r11)
+      movq r11,(r10)    F----QAM--VC          -- depend(V,r11), produce(V,r11)
+      addq $8,r10       F----QX----C          -- produce(X,r10)
+      cbgt  r10,r12,exit F----QB----C         -- forudsagt korrekt ikke taget
+      movq (r10),r11     F----QAM---C         -- depend(A,r10), produce(M+2,r11)
+      addq $100,r11       F----Q----XC        -- depend(X,r11), produce(X,r11)
+      movq r11,(r10)      F----QAM--VC        -- depend(A,r10), depend(V,r11), produce(V,r11)
+      addq $8,r10          F----QX----C       -- produce(X,r10)
+      cbl  r10,r12,loop    F----QB----C       -- produce(F+2, pc) (forudsagt korrekt taget)
+loop: movq (r10),r11         F----QAM--C      -- produce(M+2,r11)
 ~~~
 Ydeevne: 10/6 IPC
 
 En anden teknik til at skjule omkostningen ved tagne hop er at man dimensionerer
-forenden af mikroarkitektur (F til Q) lidt større end resten. Her er for eksempel
+forenden af mikroarkitektur (`F` til `Q`) lidt større end resten. Her er for eksempel
 et afviklingsplot for den ikke udrullede løkke på en maskine der kan håndtere 3
 instruktioner samtidigt i `F` til `Q`:
 
 ~~~
                        012345678901234567
-loop: movq (r10),r11   F----QAM--C            r11.time = 10
-      addq $100,r11    F----Q----XC           r11.time = 11
-      movq r11,(r10)   F----Q-AM--VC          X.time >= r10.time, V.time >= r11.time
-      addq $8,r10       F----QX----C          r10.time = 8
-      cbl  r10,r12,loop F----Q-B----C            NextF.time = 3 (forudsagt korrekt taget)
-loop: movq (r10),r11      F----QAM--C            r11.time = 14
-      addq $100,r11       F----Q----XC           r11.time = 15
-      movq r11,(r10)      F----Q-AM--VC          X.time >= r10.time, V.time >= r11.time
-      addq $8,r10          F----QX----C          r10.time = 12
+loop: movq (r10),r11   F----QAM--C            -- produce(M+2,r11)
+      addq $100,r11    F----Q----XC           -- depend(X,r11), produce(X,r11)
+      movq r11,(r10)   F----Q-AM--VC          -- depend(V,r11), produce(V,r11)
+      addq $8,r10       F----QX----C          -- produce(X,r10)
+      cbl  r10,r12,loop F----Q-B----C         -- produce(F+2, pc) (forudsagt korrekt taget)
+loop: movq (r10),r11      F----QAM--C            -- depends(A, r10), produce(M+2,r11)
+      addq $100,r11       F----Q----XC           -- depend(X,r11), produce(X,r11)
+      movq r11,(r10)      F----Q-AM--VC          -- depend(A,r10), depend(V,r11), produce(V,r11)
+      addq $8,r10          F----QX----C          -- produce(X,r10)
       cbl  r10,r12,loop    F----Q-B----C
 ~~~
 Ydeevne: 5/3 IPC
@@ -93,15 +98,15 @@ Ydeevne: 5/3 IPC
 Her ses effekten af en forkert forudsigelse:
 ~~~
                        012345678901234567
-loop: movq (r10),r11   F----QAM--C            r11.time = 10
-      addq $100,r11    F----Q----XC           r11.time = 11
-      movq r11,(r10)    F----QAM--VC          X.time >= r10.time, V.time >= r11.time
-      addq $8,r10       F----QX----C          r10.time = 8
-      cbl  r10,r12,loop  F----QB----C         NextF.time = 9 (forudsagt forkert)
-loop: movq (r10),r11            F----QAM--C            r11.time = 14
-      addq $100,r11             F----Q----XC           r11.time = 15
-      movq r11,(r10)             F----QAM--VC          X.time >= r10.time, V.time >= r11.time
-      addq $8,r10                F----QX----C          r10.time = 12
+loop: movq (r10),r11   F----QAM--C            -- produce(M+2,r11)
+      addq $100,r11    F----Q----XC           -- depend(X,r11), produce(X,r11)
+      movq r11,(r10)    F----QAM--VC          -- depend(V,r11), produce(V,r11)
+      addq $8,r10       F----QX----C          -- produce(X,r10)
+      cbl  r10,r12,loop  F----QB----C         -- produce(B+1, pc)
+loop: movq (r10),r11            F----QAM--C            -- depends(A, r10), produce(M+2,r11)
+      addq $100,r11             F----Q----XC           -- depend(X,r11), produce(X,r11)
+      movq r11,(r10)             F----QAM--VC          -- depend(A,r10), depend(V,r11), produce(V,r11)
+      addq $8,r10                F----QX----C          -- produce(X,r10)
 ~~~
 Ydeevne 5/9 IPC
 

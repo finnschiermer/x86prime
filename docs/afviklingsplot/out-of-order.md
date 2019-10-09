@@ -91,7 +91,7 @@ Her er en model af en lille out-of-order maskine:
 | --------- | -----------  | --------      | ------------------------------------------ |
 | Aritmetik | `op  a b`    | `F----QXC`    | `depend(X,a), depend(X,b), produce(X,b)`   |
 | Læsning   | `movq (a),b` | `F----QAM--C` | `depend(A,a), produce(M+2,b)`              |
-| Skrivning | `movq b,(a)` | `F----QAMVC`  | `depend(A,a), depend(M,b), produce(M,a)`   |
+| Skrivning | `movq b,(a)` | `F----QAMVC`  | `depend(A,a), depend(V,b), produce(V,a)`   |
 
 * Tilgængelige ressourcer: `F:2`, `Q:2`, `X:2`, `A:1`, `M:1`, `V:1`, `C:2`
 * Antal instruktioner under beregning: `F-Q: 8`, `M-W: 2`, `Q-C: 32`

@@ -33,8 +33,8 @@ Overvej afviklingen af følgende program:
 
 ~~~ text
                  01234567       -- Vigtige dataafhængigheder
-movq (r10),r11   FDXMMW         -- produce(W,r11)
-addq $100,r11    FDDDDXW        -- depend(X,r11), produce(M,r11)
+movq (r10),r11   FDXMMW         -- produce(M,r11)
+addq $100,r11    FDDDDXW        -- depend(X,r11), produce(X,r11)
 movq r11,(r10)    FDDDXMM       -- depend(M,r11)
 subq $8,r10       FFFFDXW       --
 subq $1,r12        FFFDXW       --

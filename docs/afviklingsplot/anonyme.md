@@ -1,5 +1,7 @@
 # Avanceret pipeline, anonyme faser
 
+<!-- Kunne være godt hvis der er tydelig forskel på stall og fase -->
+
 Det er lidt træls, hvis man skal redegøre separat for hver enkelt fase en instruktion
 gennemløber i en moderne mikroarkitektur. Det skyldes at moderne mikroarkitekturer
 afvikler instruktioner i mange forskellige faser og disse faser kan tage forskellig længde.
@@ -30,12 +32,12 @@ Lad os nu definerer en mere avanceret (og realistisk) mikroarkitektur. Lad os f�
 
 |           | Instruktion  | Faser        | Dataafhængigheder                          |
 | --------- | -----------  | --------     | ------------------------------------------ |
-| Aritmetik | `op  a b`    | `F--D-XW`    | `depend(X,a), depend(X,b), produce(W,b)`   |
-| Læsning   | `movq (a),b` | `F--D-XM--W` | `depend(X,a), produce(W,b)`                |
+| Aritmetik | `op  a b`    | `F--D-XW`    | `depend(X,a), depend(X,b), produce(X,b)`   |
+| Læsning   | `movq (a),b` | `F--D-XM--W` | `depend(X,a), produce(M+2,b)`              |
 | Skrivning | `movq b,(a)` | `F--D-XM`    | `depend(X,a), depend(M,b)`                 |
 
-Dataafhængighederne er de samme som tidligere, men den undtagelse at aritmetik instruktionerne, nu ikke har en `M` fase og derfor producerer deres resultat til fase `W`.
-Det ses af faserne. Her har vi indsat to anonyme faser `-` efter `F` og `M` for at definerer cache adgang tager i alt 3 clock perioder. På samme måde kan vi se at afkodningen i `D` nu tager 2 clock perioder. Vi kan stadig lave stalls in disse anonyme faser, så det er muligt at der er flere end antallet mellem to givne faser.
+Dataafhængighederne er de samme som tidligere, men den undtagelse at aritmetik instruktionerne, nu ikke har en `M` fase og derfor producerer deres resultat til i fase `X` til fase `W`.
+Det ses af faserne. Her har vi indsat to anonyme faser `-` efter `F` og `M` for at definerer cache adgang tager i alt 3 clock perioder. På samme måde kan vi se at afkodningen i `D` nu tager 2 clock perioder. Vi kan stadig lave stalls in disse anonyme faser, så det er muligt at der er flere end antallet mellem to givne faser. Ved læsning definerer vi at resultatet til `b` er klar 2 skridt efter 
 
 Vi kan nu sætte de udvidede specifikationer for faserne som
 
@@ -49,14 +51,14 @@ Vi sikre stadig at alle faser afvikles in-order.
 Se følgende eksempel på en kørsel af et program; læg mærke til at vi har to iterationer at en opdatering at et array:
 ~~~ text
                  012345678901234567    -- Vigtigste bemærkning
-movq (r10),r11   F--D-XM--W            -- produce(W,r11)
-addq $100,r11    F--D-----XW           -- depend(X,r11), produce(W,r11)
+movq (r10),r11   F--D-XM--W            -- produce(M+2,r11)
+addq $100,r11    F--D-----XW           -- depend(X,r11), produce(X,r11)
 movq r11,(r10)    F--D----XM           -- depend(M,r11), depend(M,r11)
-addq $8,r10       F--DDDDD-XW          -- produce(W,r10)
-movq (r10),r11     F--DDDD--XM--W      -- depend(X,r10), produce(W,r11)
-addq $100,r11      F------D-----XW     -- depend(X,r11), produce(W,r11)
+addq $8,r10       F--DDDDD-XW          -- produce(X,r10)
+movq (r10),r11     F--DDDD--XM--W      -- depend(X,r10), produce(M+2,r11)
+addq $100,r11      F------D-----XW     -- depend(X,r11), produce(X,r11)
 movq r11,(r10)      F-----DD----XM     -- depend(X,r10), depend(M,r11)
-addq $8,r10         F------DDDDD-XW    -- depend(X,r10), produce(W,r10)
+addq $8,r10         F------DDDDD-XW    -- depend(X,r10), produce(X,r10)
 ~~~
 
 Nu begynder der at ske en del. 
@@ -79,25 +81,25 @@ For eksempel kan vi udelade afkodningstrinnet fra vores beskrivelse, da det alti
 
 |           | Instruktion  | Faser        | Dataafhængigheder                          |
 | --------- | -----------  | --------     | ------------------------------------------ |
-| Aritmetik | `op  a b`    | `F----XW`    | `depend(X,a), depend(X,b), produce(W,b)`   |
-| Læsning   | `movq (a),b` | `F----XM--W` | `depend(X,a), produce(W,b)`                |
+| Aritmetik | `op  a b`    | `F----XW`    | `depend(X,a), depend(X,b), produce(X,b)`   |
+| Læsning   | `movq (a),b` | `F----XM--W` | `depend(X,a), produce(M+2,b)`              |
 | Skrivning | `movq b,(a)` | `F----XM`    | `depend(X,a), depend(M,b)`                 |
 
 * Tilgængelige ressourcer: `F:2`, `X:2`, `M:1`, `W:2`
-* Antal instruktioner under beregning: `F-X: 8`, `D-X: 2`, `M-W: 2`
+* Antal instruktioner under beregning: `F-X: 8`, `M-W: 2`
 * `inorder(F,D,X,M,W)`
 
 Dette giver den samme afvikling, blot er `D` ikke nævnt, men til gængæld kan det være mere overskueligt.
 ~~~ text
                  012345678901234567    -- Vigtigste bemærkning
-movq (r10),r11   F----XM--W            -- produce(W,r11)
-addq $100,r11    F--------XW           -- depend(X,r11), produce(W,r11)
+movq (r10),r11   F----XM--W            -- produce(M+2,r11)
+addq $100,r11    F--------XW           -- depend(X,r11), produce(X,r11)
 movq r11,(r10)    F-------XM           -- depend(M,r11), depend(M,r11)
-addq $8,r10       F--------XW          -- produce(W,r10)
-movq (r10),r11     F--------XM--W      -- depend(X,r10), produce(W,r11)
-addq $100,r11      F------------XW     -- depend(X,r11), produce(W,r11)
+addq $8,r10       F--------XW          -- produce(X,r10)
+movq (r10),r11     F--------XM--W      -- depend(X,r10), produce(M+2,r11)
+addq $100,r11      F------------XW     -- depend(X,r11), produce(X,r11)
 movq r11,(r10)      F-----------XM     -- depend(X,r10), depend(M,r11)
-addq $8,r10         F------------XW    -- depend(X,r10), produce(W,r10)
+addq $8,r10         F------------XW    -- depend(X,r10), produce(X,r10)
 ~~~
 
 Bemærk iøvrigt at selvom denne maskine kan håndtere 2 instruktioner per clk, så
@@ -110,18 +112,18 @@ Det ser ud til at vi nu bare kan indhente instruktioner, som vi lyster. Så når
 
 ~~~ text
                  012345678901234567890123    -- Vigtigste bemærkning
-movq (r10),r11   F----XM--W                  -- produce(W,r11)
-addq $100,r11    F--------XW                 -- depend(X,r11), produce(W,r11)
+movq (r10),r11   F----XM--W                  -- produce(M+2,r11)
+addq $100,r11    F--------XW                 -- depend(X,r11), produce(X,r11)
 movq r11,(r10)    F-------XM                 -- depend(M,r11), depend(M,r11)
-addq $8,r10       F--------XW                -- produce(W,r10)
-movq (r10),r11     F--------XM--W            -- depend(X,r10), produce(W,r11)
-addq $100,r11      F------------XW           -- depend(X,r11), produce(W,r11)
+addq $8,r10       F--------XW                -- produce(X,r10)
+movq (r10),r11     F--------XM--W            -- depend(X,r10), produce(M+2,r11)
+addq $100,r11      F------------XW           -- depend(X,r11), produce(X,r11)
 movq r11,(r10)      F-----------XM           -- depend(X,r10), depend(M,r11)
-addq $8,r10         F------------XW          -- depend(X,r10), produce(W,r10)
-movq (r10),r11       F------------XM--W      -- depend(X,r10), produce(W,r11)
-addq $100,r11        FFFFF------------XW     -- depend(X,r11), produce(W,r11)
+addq $8,r10         F------------XW          -- depend(X,r10), produce(X,r10)
+movq (r10),r11       F------------XM--W      -- depend(X,r10), produce(M+2,r11)
+addq $100,r11        FFFFF------------XW     -- depend(X,r11), produce(X,r11)
 movq r11,(r10)        FFFF------------XM     -- depend(X,r10), depend(M,r11)
-addq $8,r10               F------------XW    -- depend(X,r10), produce(W,r10)
+addq $8,r10               F------------XW    -- depend(X,r10), produce(X,r10)
 ~~~
 9. instruktion kan starte indhentning som normalt. Hvis vi tæller antallet af streger over dette `F` (hold tungen lige i munden) tæller vi 8, som er plads til. I den efterfølgende periode (nummer 5) fortsætter først instruktion til `X`, så denne instruktion kan fortsætte sin indlæsning. Så skal vi bare huske vores afhængighed på `r10`.
 10. instruktion kan starte indhentning med den tidligere. Men nu er de anonyme faser fulde og vi bliver nødt til at blive i `F`. Afslutningen følger de tidligere iterationer.

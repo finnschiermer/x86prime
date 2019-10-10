@@ -156,9 +156,9 @@ levels of cache.
 
 It supports 3 different microarchitectures:
 
- * A simle scalar pipeline.
- * A 3-way in-order superscalar pipeline.
- * A 3-way out-of-order (superscalar) pipeline.
+ * A simle scalar pipeline. "-pipe simple"
+ * A 3-way in-order superscalar pipeline. "-pipe super"
+ * A 3-way out-of-order (superscalar) pipeline. "-pipe ooo"
 
 There are separate primary caches for instruction and data:
 

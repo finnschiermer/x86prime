@@ -17,7 +17,8 @@ type perf = {
     reg_ready : int array;
     dec_lat : int;
     ooo : bool;
-    perf_model : bool
+    perf_model : bool;
+    profile : bool
   }
 
 

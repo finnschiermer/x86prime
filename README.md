@@ -177,6 +177,8 @@ The "prerf" tool support generation of execution graphs (da: "afviklingsplot").
 Some options:
 
  * "-show" display execution graph
+ * "-profile" display execution profile. Shows the execution count and average
+   execution latency for each instruction.
  * "-help" show list of options. Use this to see options for selecting
    performance model details.
  * "-print_config" show configuration of microarchitecture and memory hierachy

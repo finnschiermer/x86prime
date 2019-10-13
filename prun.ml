@@ -104,7 +104,8 @@ let run entry =
                   reg_ready = Array.make 16 0;
                   dec_lat = !dec_latency;
                   ooo = false;
-                  perf_model = false
+                  perf_model = false;
+                  profile = false;
                 } in
               Machine.run p_control !machine;
         end

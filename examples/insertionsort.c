@@ -11,14 +11,14 @@ long* get_random_array(long num_entries) {
 
 void sort(long num_elem, long array[]) {
 
-  for (long i = 0; i < num_elem; ++i) {
-    for (long j = i + 1; j < num_elem; j++) {
-      if (array[i] > array[j]) {
-        long tmp = array[i];
-        array[i] = array[j];
-        array[j] = tmp;
-      }
+  for (long i = 1; i < num_elem; ++i) {
+    long x = array[i];
+    long j = i - 1;
+    while (j >= 0 && array[j] > x) {
+      array[j + 1] = array[j];
+      --j;
     }
+    array[j + 1] = x;
   }
 }
 

@@ -18,7 +18,8 @@ type perf = {
     reg_ready : int array;
     dec_lat : int;
     ooo : bool;
-    perf_model : bool
+    perf_model : bool;
+    profile : bool
   }
 
 type event = Event of int * char
@@ -34,13 +35,25 @@ type plotline = {
     mutable last_cycle : int;
   }
 
+type insn_info = {
+    mutable disas : Ast.line option;
+    mutable count : int;
+    mutable exe_latency : int;
+    mutable time_change : int;
+    mutable is_target : bool
+  }
+
+let no_insn : insn_info = { disas = None; count = 0; exe_latency = 0; time_change = 0; is_target = false }
+
 type state = {
     mutable show : bool;
     mutable running : bool;
-    mutable disas : Ast.line option;
+    mutable info : insn_info;
     mutable tracefile : out_channel option;
     mutable ip : Int64.t;
     mutable message : string option;
+    mutable profile : insn_info array;
+    mutable is_target : bool;
     plot : plotline;
     regs : registers;
     mem : Memory.t;
@@ -51,9 +64,11 @@ let create () =
       show = false; 
       running = false;
       tracefile = None;
-      disas = None;
+      info = no_insn;
       ip = Int64.zero;
       message = None;
+      profile = Array.make 16 no_insn;
+      is_target = true;
       plot = {
           count = 0; iptr = 0; ops = []; ims = []; 
           events = [];
@@ -272,7 +287,7 @@ let disas_cond cond =
   | _ -> raise (UnimplementedCondition cond)
 
 let align_output state =
-  match state.disas with
+  match state.info.disas with
   | Some(d) -> state.plot.disasm <- (Printf.sprintf "%-40s" (Printer.print_insn d))
   | None -> ()
 
@@ -501,8 +516,10 @@ let model_return perf state rs =
   let predicted = Predictors.predict_return perf.rp (Int64.to_int addr) in
   if predicted then
     Resource.use_all perf.fetch_start (Resource.get_earliest perf.fetch_start + 1)
-  else
+  else begin
     Resource.use_all perf.fetch_start (exec_start + 1);
+    state.info.exe_latency <- state.info.exe_latency + 1; (* wrong *)
+  end;
   Resource.use perf.branch exec_start (exec_start + 1);
   Resource.use perf.retire time_retire (time_retire + 1);
   model_decode_stall perf state rob_entry exec_start time_retire;
@@ -575,6 +592,7 @@ let model_compute perf state rd ops_ready latency =
   if perf.dec_lat > 2 then add_event state 'r' (exec_start - 1);
   add_event state 'X' exec_start;
   add_event state 'w' exec_done;
+  state.info.exe_latency <- state.info.exe_latency + latency;
   if perf.ooo then add_event state 'C' time_retire
 
 let model_mov_imm perf state rd = model_compute perf state rd 0 1
@@ -624,6 +642,7 @@ let model_load perf state rd rs addr =
   add_event state 'A' agen_start;
   add_event state 'L' access_start;
   add_event state 'w' data_ready;
+  state.info.exe_latency <- state.info.exe_latency + (data_ready - agen_start);
   if perf.ooo then add_event state 'C' time_retire;
   perf.reg_ready.(rd) <- data_ready
 
@@ -645,9 +664,30 @@ let unsigned_mul a b =
       Int64.mul a b
 
 
+let get_insn_info state =
+  let ip = Int64.to_int state.ip in
+  let len = Array.length state.profile in
+  if (ip >= len) then begin
+    let new_len = 2 * (max len ip) in
+    let new_profile : insn_info array = Array.make new_len no_insn in
+    for i = 0 to (len - 1) do new_profile.(i) <- state.profile.(i) done;
+    state.profile <- new_profile
+  end;
+  if state.profile.(ip) == no_insn then 
+    state.profile.(ip) <- { disas = None; count = 0; exe_latency = 0; time_change = 0; is_target = false };
+  state.profile.(ip)
+
+
 let run_inst perf state =
   log_ip state;
-  if state.show then state.disas <- Some(disas_inst state);
+  let i = get_insn_info state in
+  state.info <- i;
+  if state.info.disas == None then state.info.disas <- Some(disas_inst state);
+  i.count <- 1 + i.count;
+  if state.is_target then begin
+    state.is_target <- false;
+    state.info.is_target <- true;
+  end;
   let first_byte = fetch_first state in
   let (hi,lo) = split_byte first_byte in
   let second_byte = fetch state in
@@ -704,12 +744,14 @@ let run_inst perf state =
       | 4,0xE -> begin
           wr_reg state rd state.ip; 
           model_call perf state rd state.ip;
+          state.is_target <- true;
           state.ip <- qimm (* call *)
         end
       | 4,0xF -> begin
           terminate_output state; 
           model_jmp perf state;
           if state.show then add_result state.plot "";
+          state.is_target <- true;
           state.ip <- qimm (* jmp *)
         end
       | 4,_ -> begin
@@ -718,7 +760,10 @@ let run_inst perf state =
           let ops_ready = max perf.reg_ready.(rd) perf.reg_ready.(rs) in
           model_cond_branch perf state (Int64.to_int state.ip) imm taken ops_ready;
           if state.show then add_result state.plot (if taken then "<T>" else "<NT>");
-          if taken then state.ip <- qimm
+          if taken then begin
+            state.ip <- qimm;
+            state.is_target <- true;
+          end
         end
       | 5,0 -> model_alu_imm perf state rd; wr_reg state rd (Int64.add state.regs.(rd) qimm)
       | 5,1 -> model_alu_imm perf state rd; wr_reg state rd (Int64.sub state.regs.(rd) qimm)
@@ -768,7 +813,10 @@ let run_inst perf state =
       terminate_output state;
       model_cond_branch perf state (Int64.to_int state.ip) imm taken perf.reg_ready.(rd);
       if state.show then add_result state.plot (if taken then "<T>" else "<NT>");
-      if (taken) then state.ip <- q_a_imm
+      if (taken) then begin
+        state.ip <- q_a_imm;
+        state.is_target <- true;
+      end
     end
   | _ -> raise (UnknownInstructionAt (Int64.to_int state.ip))
 
@@ -790,4 +838,22 @@ let run perf state =
     | None -> ()
   end;
   state.tracefile <- None;
-  if state.show then Printf.printf "\nSimulation terminated\n"
+  if state.show then Printf.printf "\nSimulation terminated\n";
+  if perf.profile then begin
+    Printf.printf "\n\nExecution profile:\n";
+    let max = (Array.length state.profile) - 1 in
+    for i = 0 to max do
+      if state.profile.(i) <> no_insn then begin
+        let insn = state.profile.(i) in
+        let d = match insn.disas with None -> "err" | Some(e) -> Printer.print_insn e in
+        let with_lat = insn.exe_latency <> 0 in
+        if insn.is_target then Printf.printf "%x:\n" i;
+        if with_lat then begin
+          let avg_lat = (float_of_int insn.exe_latency) /. (float_of_int insn.count) in
+          Printf.printf "%6x : %8d  %6.2f  %-40s\n" i insn.count avg_lat d
+        end else begin
+          Printf.printf "%6x : %8d          %-40s\n" i insn.count d
+        end
+      end
+    done
+  end

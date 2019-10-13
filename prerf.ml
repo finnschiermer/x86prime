@@ -38,6 +38,7 @@ let mem_latency = ref 100
 let dec_latency = ref 1
 let pipe_width = ref 1
 let ooo = ref false
+let profile = ref false
 
 let print_cache_config assoc idx_bits blk_bits latency =
   let size = assoc lsl (idx_bits + blk_bits) in
@@ -106,7 +107,8 @@ let run entry =
                   reg_ready = Array.make 16 0;
                   dec_lat = !dec_latency;
                   ooo = !ooo;
-                  perf_model = true
+                  perf_model = true;
+                  profile = !profile;
                 } in
               Machine.run p_control !machine;
               if !print_perf then begin
@@ -189,6 +191,7 @@ let cmd_spec = [
     ("-dec_lat", Arg.Set_int dec_latency, "<latency> latency of decode stages");
     ("-pipe_width", Arg.Set_int pipe_width, "<width> max number of insn fetched/clk");
     ("-ooo", Arg.Set ooo, "enable out-of-order scheduling");
+    ("-profile", Arg.Set profile, "print an execution profile");
     ("-pipe", Arg.Set_string set_pipe, "simple/super/ooo select base pipeline configuration");
     ("-mem", Arg.Set_string set_mem, "magic/real select base memory configuration");
     ("-print_config", Arg.Set do_print_config, "print detailed performance model configuration")

@@ -1,24 +1,4 @@
-let regnr reg =
-  match reg with
-  | "%r_a" -> 16
-  | "%r_d" -> 17
-  | "%rax" | "%eax" -> 0
-  | "%rbx" | "%ebx" -> 1
-  | "%rcx" | "%ecx" -> 2
-  | "%rdx" | "%edx" -> 3
-  | "%rbp" | "%ebp" -> 4
-  | "%rsi" | "%esi" -> 5
-  | "%rdi" | "%edi" -> 6
-  | "%rsp" | "%esp" -> 7
-  | "%r8"  | "%r8d" -> 8
-  | "%r9"  | "%r9d" -> 9
-  | "%r10" | "%r10d" -> 10
-  | "%r11" | "%r11d" -> 11
-  | "%r12" | "%r12d" -> 12
-  | "%r13" | "%r13d" -> 13
-  | "%r14" | "%r14d" -> 14
-  | "%r15" | "%r15d" -> 15
-  | _ -> 18
+let regnr reg = reg
 
 let regname nr =
   match nr with
@@ -91,13 +71,12 @@ let allocate_reg reg_list =
 let rec txl_instructions lines =
   let open Ast in
   match lines with
-  | Ok(Alu2(MOVABSQ,Imm(a),b)) :: tl -> begin
-      let v : Int64.t = Int64.of_string a in
+  | Ok(Alu2(MOVABSQ,Imm(Value(v)),b)) :: tl -> begin
       let lo : Int64.t = Int64.of_int32 (Int64.to_int32 v) in
       let rest = Int64.sub v lo in
       let hi = Int64.shift_right rest 32 in
-      Ok(Alu2(MOV,Imm(Int64.to_string hi), b)) :: Ok(Alu2(SAL,Imm("32"),b))
-         :: Ok(Alu2(ADD,Imm(Int64.to_string lo), b)) :: txl_instructions tl
+      Ok(Alu2(MOV,Imm(Value(hi)), b)) :: Ok(Alu2(SAL,Imm(Value(Int64.of_int 32)),b))
+         :: Ok(Alu2(ADD,Imm(Value(lo)), b)) :: txl_instructions tl
     end
   | insn :: tl -> insn :: (txl_instructions tl)
   | [] -> []
@@ -161,7 +140,7 @@ let rec free_up_needed_registers lines needs good_registers bad_registers =
           match allocate_reg bad_registers with
           | Some(r,left) ->
              (* Printf.printf "freeing up register %s\n" (regname r); *)
-             let freed_up_code = free_up_register lines (regname r) in
+             let freed_up_code = free_up_register lines r in
              free_up_needed_registers freed_up_code tl good_registers left
           | None -> raise NotEnoughFreeRegisters
         end
@@ -173,12 +152,12 @@ let rec rebind_needed_registers lines needs good_registers bad_registers =
   | hd :: tl -> begin
       match allocate_reg good_registers with
       | Some(r,left) -> 
-         let new_code = rebind_register lines hd (regname r) in
+         let new_code = rebind_register lines hd r in
          rebind_needed_registers new_code tl left bad_registers
       | None -> begin
           match allocate_reg bad_registers with
           | Some(r,left) ->
-             let new_code = rebind_register lines hd (regname r) in
+             let new_code = rebind_register lines hd r in
              rebind_needed_registers new_code tl good_registers left
           | None -> raise NotEnoughFreeRegisters
         end
@@ -206,9 +185,9 @@ let translate_function lines =
   let needs_r_d = (regs2 land r_d_mask) <> 0 in
   let needs = match needs_r_a,needs_r_d with
     | false,false -> []
-    | false,true -> ["%r_d"]
-    | true,false -> ["%r_a"]
-    | true,true -> ["%r_a"; "%r_d"]
+    | false,true -> [Ast.reg_d]
+    | true,false -> [Ast.reg_a]
+    | true,true -> [Ast.reg_a; Ast.reg_d]
   in
   try
     let code = free_up_needed_registers lines needs free_caller_saves_regs free_callee_saves_regs in

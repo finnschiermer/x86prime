@@ -28,12 +28,12 @@ and rewrite_to_load insn tail =
   let open Ast in
   match insn with
   | Ok(Alu2(opc,EaS(m),reg)) ->
-     Ok(Move2(MOV,EaS(m),Reg("%r_d"))) 
-     :: (Ok(Alu2(opc,Reg("%r_d"),reg)) 
+     Ok(Move2(MOV,EaS(m),Reg(reg_d))) 
+     :: (Ok(Alu2(opc,Reg(reg_d),reg)) 
          :: (convert_loop tail))
   | Ok(Alu2(opc,EaDS(d,m),reg)) ->
-     Ok(Move2(MOV,EaDS(d,m),Reg("%r_d"))) 
-     :: (Ok(Alu2(opc,Reg("%r_d"),reg)) 
+     Ok(Move2(MOV,EaDS(d,m),Reg(reg_d))) 
+     :: (Ok(Alu2(opc,Reg(reg_d),reg)) 
          :: (convert_loop tail))
   | Ok(i) -> Error ("Conversion failed", Printer.print_insn i) :: (convert_loop tail)
   | _ -> raise (Address_mode_conversion_failed "internal error")
@@ -42,29 +42,29 @@ and inject_leaq insn tail =
   let open Ast in
   match insn with
   | Ok(Alu2(opc,cplx,Reg(r))) -> begin
-      let insn1 = Ok(Alu2(LEA,cplx,Reg("%r_a"))) in
-      let trigger = Ok(Alu2(opc,EaS("%r_a"),Reg(r))) in
+      let insn1 = Ok(Alu2(LEA,cplx,Reg(reg_a))) in
+      let trigger = Ok(Alu2(opc,EaS(reg_a),Reg(r))) in
      insn1 :: (convert_loop (trigger :: tail))
     end
   | Ok(Alu2(opc,Reg(r),cplx)) -> begin
-      let insn1 = Ok(Alu2(LEA,cplx,Reg("%r_a"))) in
-      let trigger = Ok(Alu2(opc,Reg(r),EaS("%r_a"))) in
+      let insn1 = Ok(Alu2(LEA,cplx,Reg(reg_a))) in
+      let trigger = Ok(Alu2(opc,Reg(r),EaS(reg_a))) in
      insn1 :: (convert_loop (trigger :: tail))
     end
   | Ok(Move2(opc,cplx,Reg(r))) -> begin
-      let insn1 = Ok(Alu2(LEA,cplx,Reg("%r_a"))) in
-      let trigger = Ok(Move2(opc,EaS("%r_a"),Reg(r))) in
+      let insn1 = Ok(Alu2(LEA,cplx,Reg(reg_a))) in
+      let trigger = Ok(Move2(opc,EaS(reg_a),Reg(r))) in
      insn1 :: (convert_loop (trigger :: tail))
     end
   | Ok(Move2(opc,Reg(r),cplx)) -> begin
-      let insn1 = Ok(Alu2(LEA,cplx,Reg("%r_a"))) in
-      let trigger = Ok(Move2(opc,Reg(r),EaS("%r_a"))) in
+      let insn1 = Ok(Alu2(LEA,cplx,Reg(reg_a))) in
+      let trigger = Ok(Move2(opc,Reg(r),EaS(reg_a))) in
      insn1 :: (convert_loop (trigger :: tail))
     end
   | Ok(Move2(opc,Imm(i),cplx)) -> begin
-      let insn1 = Ok(Alu2(LEA,cplx,Reg("%r_a"))) in
-      let insn2 = Ok(Move2(opc,Imm(i),Reg("%r_d"))) in
-      let trigger = Ok(Move2(opc,Reg("%r_d"),EaS("%r_a"))) in
+      let insn1 = Ok(Alu2(LEA,cplx,Reg(reg_a))) in
+      let insn2 = Ok(Move2(opc,Imm(i),Reg(reg_d))) in
+      let trigger = Ok(Move2(opc,Reg(reg_d),EaS(reg_a))) in
      insn1 :: insn2 ::(convert_loop (trigger :: tail))
     end
   | Ok(i) -> Error ("Conversion failed", Printer.print_insn i) :: (convert_loop tail)
@@ -75,24 +75,24 @@ and rewrite_to_store insn tail =
   match insn with
   | Ok(Alu2(opc,simple,EaS(m))) -> begin
       if opc = CMP || opc = TEST then (* careful - not all alu ops write back *)
-        Ok(Move2(MOV,EaS(m),Reg("%r_d"))) 
-        :: (Ok(Alu2(opc,simple,Reg("%r_d")))
+        Ok(Move2(MOV,EaS(m),Reg(reg_d))) 
+        :: (Ok(Alu2(opc,simple,Reg(reg_d)))
             :: (convert_loop tail))
       else
-        Ok(Move2(MOV,EaS(m),Reg("%r_d"))) 
-        :: (Ok(Alu2(opc,simple,Reg("%r_d")))
-            :: (Ok(Move2(MOV,Reg("%r_d"),EaS(m)))
+        Ok(Move2(MOV,EaS(m),Reg(reg_d))) 
+        :: (Ok(Alu2(opc,simple,Reg(reg_d)))
+            :: (Ok(Move2(MOV,Reg(reg_d),EaS(m)))
                 :: (convert_loop tail)))
     end
   | Ok(Alu2(opc,simple,EaDS(d,m))) -> begin
       if opc = CMP || opc = TEST then (* careful - not all alu ops write back *)
-        Ok(Move2(MOV,EaDS(d,m),Reg("%r_d"))) 
-        :: (Ok(Alu2(opc,simple,Reg("%r_d")))
+        Ok(Move2(MOV,EaDS(d,m),Reg(reg_d))) 
+        :: (Ok(Alu2(opc,simple,Reg(reg_d)))
             :: (convert_loop tail))
       else
-        Ok(Move2(MOV,EaDS(d,m),Reg("%r_d"))) 
-        :: (Ok(Alu2(opc,simple,Reg("%r_d")))
-            :: (Ok(Move2(MOV,Reg("%r_d"),EaDS(d,m)))
+        Ok(Move2(MOV,EaDS(d,m),Reg(reg_d))) 
+        :: (Ok(Alu2(opc,simple,Reg(reg_d)))
+            :: (Ok(Move2(MOV,Reg(reg_d),EaDS(d,m)))
                 :: (convert_loop tail)))
     end
   | Ok(i) -> Error ("Conversion failed", Printer.print_insn i) :: (convert_loop tail)

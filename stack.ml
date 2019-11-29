@@ -3,6 +3,9 @@
 (* Should also handle direct adjustment of %rsp *)
 (* and memory addressing relative to %rsp *)
 
+let r_sp = 7
+let r_ret = 11
+
 let rec stack_change lines pushes pops =
   let open Ast in
   match lines with
@@ -20,16 +23,16 @@ let rec process_all_blocks lines =
   else process_push_pop_block lines pushes pops
 
 and process_pop_block block pops =
-  let sp_adjust = Ok(Ast.Alu2(ADD,Ast.Imm(Printf.sprintf "%d" (8 * pops)),Ast.Reg("%rsp"))) in
+  let sp_adjust = Ok(Ast.Alu2(ADD,Ast.Imm(Value(Int64.of_int (8 * pops))),Ast.Reg(r_sp))) in
   rewrite_block block 0 (Some sp_adjust)
 
 and process_push_block block pushes =
-  let sp_adjust = Ok(Ast.Alu2(SUB,Ast.Imm(Printf.sprintf "%d" (8 * pushes)),Ast.Reg("%rsp"))) in
+  let sp_adjust = Ok(Ast.Alu2(SUB,Ast.Imm(Value(Int64.of_int (8 * pushes))),Ast.Reg(r_sp))) in
   sp_adjust :: (rewrite_block block (8 * pushes) None)
 
 and process_push_pop_block block pushes pops =
-  let sp_adjust_before = Ok(Ast.Alu2(SUB,Ast.Imm(Printf.sprintf "%d" (8 * pushes)),Ast.Reg("%rsp"))) in
-  let sp_adjust_after = Ok(Ast.Alu2(ADD,Ast.Imm(Printf.sprintf "%d" (8 * pops)),Ast.Reg("%rsp"))) in
+  let sp_adjust_before = Ok(Ast.Alu2(SUB,Ast.Imm(Value(Int64.of_int (8 * pushes))),Ast.Reg(r_sp))) in
+  let sp_adjust_after = Ok(Ast.Alu2(ADD,Ast.Imm(Value(Int64.of_int (8 * pops))),Ast.Reg(r_sp))) in
   sp_adjust_before :: rewrite_block block (8 * pushes) (Some sp_adjust_after)
 
 and rewrite_block block curr_sp terminator =
@@ -38,14 +41,14 @@ and rewrite_block block curr_sp terminator =
   | Ok(PuPo(PUSH,reg)) :: rest -> 
      let curr_sp = curr_sp - 8 in
      if curr_sp = 0 then
-       Ok(Move2(MOV,reg,EaS("%rsp"))) :: rewrite_block rest curr_sp terminator
+       Ok(Move2(MOV,reg,EaS(r_sp))) :: rewrite_block rest curr_sp terminator
      else
-       Ok(Move2(MOV,reg,EaDS((Printf.sprintf "%d" (curr_sp)), "%rsp"))) :: rewrite_block rest curr_sp terminator
+       Ok(Move2(MOV,reg,EaDS((Value(Int64.of_int curr_sp)), r_sp))) :: rewrite_block rest curr_sp terminator
   | Ok(PuPo(POP,reg)) :: rest ->
      if curr_sp = 0 then
-       Ok(Move2(MOV,EaS("%rsp"),reg)) :: rewrite_block rest (curr_sp + 8) terminator
+       Ok(Move2(MOV,EaS(r_sp),reg)) :: rewrite_block rest (curr_sp + 8) terminator
      else
-       Ok(Move2(MOV,EaDS((Printf.sprintf "%d" (curr_sp)), "%rsp"),reg)) :: rewrite_block rest (curr_sp + 8) terminator
+       Ok(Move2(MOV,EaDS((Value(Int64.of_int curr_sp)), r_sp),reg)) :: rewrite_block rest (curr_sp + 8) terminator
   | (Ok(Alu2(_)) as insn) :: rest | (Ok(Move2(_)) as insn) :: rest | (Ok(Ignored(_)) as insn) :: rest -> 
      insn :: rewrite_block rest curr_sp terminator
   | (Ok(Ctl0(_)) as insn) :: rest | (Ok(Ctl1(_)) as insn) :: rest | (Ok(Ctl3(_)) as insn) :: rest 
@@ -61,11 +64,11 @@ let rec rewrite_calls lines =
   let open Ast in
   match lines with
   | Ok(Ctl1(CALL,target)) :: others -> 
-     Ok(Ctl2(CALL,target,Reg("%r11"))) :: rewrite_calls others
+     Ok(Ctl2(CALL,target,Reg(r_ret))) :: rewrite_calls others
   | Ok(Ctl0(RET)) :: others ->
-     Ok(PuPo(POP,Reg("%r11"))) :: Ok(Ctl1(RET,Reg("%r11"))) :: rewrite_calls others
+     Ok(PuPo(POP,Reg(r_ret))) :: Ok(Ctl1(RET,Reg(r_ret))) :: rewrite_calls others
   | Ok(Fun_start) as insn :: others ->
-     insn :: Ok(PuPo(PUSH,Reg("%r11"))) :: rewrite_calls others
+     insn :: Ok(PuPo(PUSH,Reg(r_ret))) :: rewrite_calls others
   | i :: others -> i :: rewrite_calls others
   | [] -> []
 

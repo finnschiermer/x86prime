@@ -25,30 +25,39 @@ type perf = {
 type event = Event of int * char
 type plotline = {
     mutable count : int;
-    mutable iptr : int;
-    mutable ops : int list;
-    mutable ims : int list;
-    mutable events : event list;
     mutable disasm : string;
+    mutable iptr : int;
+    mutable events : event list;
     mutable result : string;
     mutable first_cycle : int;
     mutable last_cycle : int;
   }
 
 type insn_info = {
-    mutable disas : Ast.line option;
+    mutable decoded : Ast.line option;
+    mutable disasm : string;
+    mutable encoding : string;
+    mutable size : int;
     mutable count : int;
     mutable exe_latency : int;
     mutable time_change : int;
     mutable is_target : bool
   }
 
-let no_insn : insn_info = { disas = None; count = 0; exe_latency = 0; time_change = 0; is_target = false }
+let no_insn : insn_info = { 
+    decoded = None; disasm = ""; encoding = "";
+    size = 0; count = 0; 
+    exe_latency = 0; 
+    time_change = 0; 
+    is_target = false
+  }
 
 type state = {
     mutable show : bool;
     mutable running : bool;
-    mutable info : insn_info;
+    mutable info : insn_info; (* current instruction *)
+    mutable ops : int list;
+    mutable ims : int list;
     mutable tracefile : out_channel option;
     mutable ip : Int64.t;
     mutable message : string option;
@@ -65,14 +74,16 @@ let create () =
       running = false;
       tracefile = None;
       info = no_insn;
+      ops = []; 
+      ims = []; 
       ip = Int64.zero;
       message = None;
       profile = Array.make 16 no_insn;
       is_target = true;
       plot = {
-          count = 0; iptr = 0; ops = []; ims = []; 
-          events = [];
-          disasm = ""; result = ""; 
+          count = 0; iptr = 0;
+          disasm = "";
+          events = []; result = ""; 
           first_cycle = 0; last_cycle = 16
       };
       regs = Array.make 16 Int64.zero; 
@@ -94,7 +105,8 @@ let line_background = Bytes.of_string "|                |                |      
 let line_separator = "|----------------|----------------|----------------|----------------|----------------|"
 let background_length = 80
 
-let print_plotline (line : plotline) with_perf =
+let print_plotline state with_perf =
+  let line = state.plot in
   if with_perf then begin
     if (line.count mod 16) = 0 then begin
       if (line.count mod 32) = 0 then begin
@@ -113,13 +125,8 @@ let print_plotline (line : plotline) with_perf =
     end
   end;
   line.count <- 1 + line.count;
-  let s = Printf.sprintf "%08x : " line.iptr in
-  let map_ops op = Printf.sprintf "%02x " op in
-  let map_imm imm = Printf.sprintf "%08x " imm in
-  let numlist = List.flatten [[s]; (List.map map_ops line.ops); (List.map map_imm line.ims)] in
-  let numstring = String.concat "" numlist in
-  let len_nums = String.length numstring in
-  let void = String.make (40 - len_nums) ' ' in
+
+  let s = Printf.sprintf "%08X : " (Int64.to_int state.ip) in
   if with_perf then begin
     let put_char time char = begin
       let disp = time - line.first_cycle in
@@ -130,11 +137,11 @@ let print_plotline (line : plotline) with_perf =
     let put_event ev = match ev with Event(time,code) -> put_char time code in
     let zap_event ev = match ev with Event(time,_) -> put_char time ' ' in
     List.iter put_event line.events;
-    let total = String.concat "" [numstring; void; line.disasm; line.result; Bytes.unsafe_to_string line_background] in
+    let total = String.concat "" [s; state.info.encoding; state.info.disasm; line.result; Bytes.unsafe_to_string line_background] in
     Printf.printf "\n%s" total;
     List.iter zap_event line.events
   end else begin
-    let total = String.concat "" [numstring; void; line.disasm; line.result] in
+    let total = String.concat "" [s; state.info.encoding; state.info.disasm; line.result] in
     Printf.printf "\n%s" total;
   end
 
@@ -202,15 +209,15 @@ let _fetch state =
 
 let fetch state =
   let byte = _fetch state in
-  if state.show then state.plot.ops <- state.plot.ops @ [byte];
+  if state.show then state.ops <- state.ops @ [byte];
   byte
 
 let fetch_first state =
   let first_byte = _fetch state in
   if state.show then begin
     state.plot.iptr <- ((Int64.to_int state.ip) - 1);
-    state.plot.ops <- [first_byte];
-    state.plot.ims <- [];
+    state.ops <- [first_byte];
+    state.ims <- [];
     state.plot.events <- []
   end;
   first_byte
@@ -221,16 +228,8 @@ let fetch_imm state =
   let c = _fetch state in
   let d = _fetch state in
   let imm =(((((d lsl 8) + c) lsl 8) + b) lsl 8) + a in
-  if state.show then state.plot.ims <- state.plot.ims @ [imm];
+  if state.show then state.ims <- state.ims @ [imm];
   imm
-
-let imm_to_qimm imm =
-  if (imm lsr 31) == 0 then
-    Int64.of_int imm
-  else (* negative *)
-    let hi = Int64.shift_left (Int64.of_int 0xFFFFFFFF) 32 in
-    let lo = Int64.of_int imm in
-    Int64.logor hi lo
 
 exception UnknownInstructionAt of int
 exception UnimplementedCondition of int
@@ -242,66 +241,34 @@ let comp a b = Int64.compare a b
 
 let eval_condition cond b a =
   (* Printf.printf "{ %d %x %x }" cond (Int64.to_int a) (Int64.to_int b); *)
+  let open Ast in
   match cond with
-  | 0 -> a = b
-  | 1 -> a <> b
-  | 4 -> a < b
-  | 5 -> a <= b
-  | 6 -> a > b
-  | 7 -> a >= b
-  | 8 -> begin (* unsigned above  (a > b) *)
+  | E -> a = b
+  | NE -> a <> b
+  | L -> a < b
+  | LE -> a <= b
+  | G -> a > b
+  | GE -> a >= b
+  | A -> begin (* unsigned above  (a > b) *)
       if a < Int64.zero && b >= Int64.zero then true
       else if a >= Int64.zero && b < Int64.zero then false
       else a > b
     end
-  | 9 -> begin (* unsigned above or equal (a >= b) *)
+  | AE -> begin (* unsigned above or equal (a >= b) *)
       if a < Int64.zero && b >= Int64.zero then true
       else if a >= Int64.zero && b < Int64.zero then false
       else a >= b
     end
-  | 10 -> begin (* unsigned below  (a < b) *)
+  | B -> begin (* unsigned below  (a < b) *)
       if a < Int64.zero && b >= Int64.zero then false
       else if a >= Int64.zero && b < Int64.zero then true
       else a < b
     end
-  | 11 -> begin (* unsigned below or equal (a <= b) *)
+  | BE -> begin (* unsigned below or equal (a <= b) *)
       if a < Int64.zero && b >= Int64.zero then false
       else if a >= Int64.zero && b < Int64.zero then true
       else a <= b
     end
-  | _ -> raise (UnimplementedCondition cond)
-
-let disas_cond cond =
-  let open Ast in
-  match cond with
-  | 0 -> E
-  | 1 -> NE
-  | 4 -> L
-  | 5 -> LE
-  | 6 -> G
-  | 7 -> GE
-  | 8 -> A
-  | 9 -> AE
-  | 10 -> B
-  | 11 -> BE
-  | _ -> raise (UnimplementedCondition cond)
-
-let align_output state =
-  match state.info.disas with
-  | Some(d) -> state.plot.disasm <- (Printf.sprintf "%-40s" (Printer.print_insn d))
-  | None -> ()
-
-let reg_name reg =
-  match reg with
-  | 0 -> "%rax"
-  | 1 -> "%rbx"
-  | 2 -> "%rcx"
-  | 3 -> "%rdx"
-  | 4 -> "%rbp"
-  | 5 -> "%rsi"
-  | 6 -> "%rdi"
-  | 7 -> "%rsp"
-  | _ -> Printf.sprintf "%%r%-2d" reg
 
 let log_ip state =
   match state.tracefile with
@@ -310,8 +277,7 @@ let log_ip state =
 
 let wr_reg state reg value =
   if state.show then begin
-      align_output state;
-      add_result state.plot (Printf.sprintf "%s <- 0x%Lx" (reg_name reg) value);
+      add_result state.plot (Printf.sprintf "%s <- 0x%Lx" (Printer.reg_name reg) value);
     end;
   begin
     match state.tracefile with
@@ -359,7 +325,6 @@ let wr_mem state addr value =
   if is_io_area addr then begin
     let port = (Int64.to_int addr) land 0x0ff in
     if state.show then begin
-      align_output state;
       add_result state.plot (Printf.sprintf "Output <- %Lx" value)
     end;
     perform_output port value;
@@ -368,7 +333,6 @@ let wr_mem state addr value =
     | None -> ()
   end else begin
     if state.show then begin
-      align_output state;
       add_result state.plot (Printf.sprintf "Memory[ 0x%Lx ] <- 0x%Lx" addr value)
     end;
     begin
@@ -383,111 +347,44 @@ let set_ip state ip =
   if state.show then Printf.printf "Starting execution from address 0x%X\n" ip;
   state.ip <- Int64.of_int ip
 
-let fetch_from_offs state offs =
-  Memory.read_byte state.mem (Int64.add state.ip (Int64.of_int offs)) 
-
-let fetch_imm_from_offs state offs =
-  let a = fetch_from_offs state offs in
-  let b = fetch_from_offs state (offs + 1) in
-  let c = fetch_from_offs state (offs + 2) in
-  let d = fetch_from_offs state (offs + 3) in
-  let imm =(((((d lsl 8) + c) lsl 8) + b) lsl 8) + a in
-  imm
-
-let disas_reg r =
-  match r with
-  | 0 -> "%rax"
-  | 1 -> "%rbx"
-  | 2 -> "%rcx"
-  | 3 -> "%rdx"
-  | 4 -> "%rbp"
-  | 5 -> "%rsi"
-  | 6 -> "%rdi"
-  | 7 -> "%rsp"
-  | _ -> Printf.sprintf "%%r%d" r
-
-
-let disas_sh sh =
-  match sh with
-  | 0 -> "1"
-  | 1 -> "2"
-  | 2 -> "4"
-  | 3 -> "8"
-  | _ -> "?"
-
 let disas_imm imm = 
   let i : Int32.t = Int32.of_int imm in
   if i < Int32.zero then Int32.to_string i
   else Int32.to_string i
 
-let disas_mem imm = Printf.sprintf "0x%x" imm
+
+
+
 
 let disas_inst state =
-  let first_byte = fetch_from_offs state 0 in
-  let (hi,lo) = split_byte first_byte in
-  let second_byte = fetch_from_offs state 1 in
-  let (rd,rs) = split_byte second_byte in
-  match hi,lo with
-  | 0,0 -> Ast.Ctl1(RET,Reg(disas_reg rs))
-  | 0,1 -> Ast.Ctl0(SYSCALL)
-  | 1,0 -> Ast.Alu2(ADD,Reg(disas_reg rs), Reg(disas_reg rd))
-  | 1,1 -> Ast.Alu2(SUB,Reg(disas_reg rs), Reg(disas_reg rd))
-  | 1,2 -> Ast.Alu2(AND,Reg(disas_reg rs), Reg(disas_reg rd))
-  | 1,3 -> Ast.Alu2(OR,Reg(disas_reg rs), Reg(disas_reg rd))
-  | 1,4 -> Ast.Alu2(XOR,Reg(disas_reg rs), Reg(disas_reg rd))
-  | 1,5 -> Ast.Alu2(MUL,Reg(disas_reg rs), Reg(disas_reg rd))
-  | 1,6 -> Ast.Alu2(SAR,Reg(disas_reg rs), Reg(disas_reg rd))
-  | 1,7 -> Ast.Alu2(SAL,Reg(disas_reg rs), Reg(disas_reg rd))
-  | 1,8 -> Ast.Alu2(SHR,Reg(disas_reg rs), Reg(disas_reg rd))
-  | 1,9 -> Ast.Alu2(IMUL,Reg(disas_reg rs), Reg(disas_reg rd))
-  | 2,1 -> Ast.Move2(MOV,Reg(disas_reg rs), Reg(disas_reg rd))
-  | 3,1 -> Ast.Move2(MOV,EaS(disas_reg rs), Reg(disas_reg rd))
-  | 3,9 -> Ast.Move2(MOV,Reg(disas_reg rd), EaS(disas_reg rs))
-  | 4,_ | 5,_ | 6,_ | 7,_ -> begin (* instructions with 2 bytes + 1 immediate *)
-      let imm = fetch_imm_from_offs state 2 in
-      match hi,lo with
-      | 4,0xE -> Ast.Ctl2(CALL,EaD(disas_mem imm),Reg(disas_reg rd))
-      | 4,0xF -> Ast.Ctl1(JMP,EaD(disas_mem imm))
-      | 4,_ -> Ast.Ctl3(CBcc(disas_cond lo),Reg(disas_reg rs),Reg(disas_reg rd),EaD(disas_mem imm));
-      | 5,0 -> Ast.Alu2(ADD,Imm(disas_imm imm),Reg(disas_reg rd))
-      | 5,1 -> Ast.Alu2(SUB,Imm(disas_imm imm),Reg(disas_reg rd))
-      | 5,2 -> Ast.Alu2(AND,Imm(disas_imm imm),Reg(disas_reg rd))
-      | 5,3 -> Ast.Alu2(OR,Imm(disas_imm imm),Reg(disas_reg rd))
-      | 5,4 -> Ast.Alu2(XOR,Imm(disas_imm imm),Reg(disas_reg rd))
-      | 5,5 -> Ast.Alu2(MUL,Imm(disas_imm imm),Reg(disas_reg rd))
-      | 5,6 -> Ast.Alu2(SAR,Imm(disas_imm imm),Reg(disas_reg rd))
-      | 5,7 -> Ast.Alu2(SAL,Imm(disas_imm imm),Reg(disas_reg rd))
-      | 5,8 -> Ast.Alu2(SHR,Imm(disas_imm imm),Reg(disas_reg rd))
-      | 5,9 -> Ast.Alu2(IMUL,Imm(disas_imm imm),Reg(disas_reg rd))
-      | 6,4 -> Ast.Move2(MOV,Imm(disas_imm imm),Reg(disas_reg rd))
-      | 7,5 -> Ast.Move2(MOV,EaDS(disas_imm imm,disas_reg rs),Reg(disas_reg rd))
-      | 7,0xD ->Ast.Move2(MOV,Reg(disas_reg rd), EaDS(disas_imm imm,disas_reg rs))
-      | _ -> raise (UnknownInstructionAt (Int64.to_int state.ip))
-    end
-  | 8,_ | 9,_ | 10,_ | 11,_ -> begin (* leaq *)
-      let has_third_byte = hi = 9 || hi = 11 in
-      let has_imm = hi = 10 || hi = 11 in
-      let imm_offs = if has_third_byte then 3 else 2 in
-      let (rz,sh) = if has_third_byte then split_byte (fetch_from_offs state 2) else 0,0 in
-      let imm = if has_imm then fetch_imm_from_offs state imm_offs else 0 in
-      match lo with
-      | 1 -> Ast.Alu2(LEA,EaS(disas_reg rs),Reg(disas_reg rd))
-      | 2 -> Ast.Alu2(LEA,EaZ(disas_reg rz,disas_sh sh),Reg(disas_reg rd))
-      | 3 -> Ast.Alu2(LEA,EaZS(disas_reg rs,disas_reg rz,disas_sh sh),Reg(disas_reg rd))
-      | 4 -> Ast.Alu2(LEA,EaD(disas_mem imm),Reg(disas_reg rd))
-      | 5 -> Ast.Alu2(LEA,EaDS(disas_imm imm, disas_reg rs),Reg(disas_reg rd))
-      | 6 -> Ast.Alu2(LEA,EaDZ(disas_imm imm, disas_reg rz,disas_sh sh),Reg(disas_reg rd))
-      | 7 -> Ast.Alu2(LEA,EaDZS(disas_imm imm, disas_reg rs,disas_reg rz,disas_sh sh),Reg(disas_reg rd))
-      | _ -> raise (UnknownInstructionAt (Int64.to_int state.ip))
-    end
-  | 15,_ -> begin (* cbcc with both imm and target *)
-      let imm = fetch_imm_from_offs state 2 in
-      let a_imm = fetch_imm_from_offs state 6 in
-      Ast.Ctl3(CBcc(disas_cond lo),Imm(disas_imm imm),Reg(disas_reg rd),EaD(disas_mem a_imm))
-    end
-  | _ -> raise (UnknownInstructionAt (Int64.to_int state.ip))
+  if state.show then begin
+    state.plot.iptr <- Int64.to_int state.ip;
+    state.ops <- [];
+    state.ims <- [];
+    state.plot.events <- []
+  end;
+  let tmp_ip = state.ip in
+  let fetch_next _ = fetch state in
+  let decoded = Codec.decode fetch_next in
+  let disasm = Printf.sprintf "%-40s" (Printer.print_insn decoded) in
+  let size = Int64.to_int state.ip - Int64.to_int tmp_ip in
+  state.ip <- tmp_ip;
+  let map_ops op = Printf.sprintf "%02X " op in
+  let map_imm imm = Printf.sprintf "%08X " imm in
+  let numlist = List.flatten [(List.map map_ops state.ops); (List.map map_imm state.ims)] in
+  let numstring = String.concat "" numlist in
+  let len_nums = String.length numstring in
+  let void = String.make (50 - len_nums) ' ' in
+  let encoding = String.concat "" [numstring; void] in
+  encoding, decoded, disasm, size
 
-let terminate_output state = if state.show then align_output state
+
+
+
+
+
+
+
 
 let model_fetch_decode perf state =
   let start = Resource.acquire perf.fetch_start 0 in
@@ -646,9 +543,12 @@ let model_load perf state rd rs addr =
   if perf.ooo then add_event state 'C' time_retire;
   perf.reg_ready.(rd) <- data_ready
 
-
-
 let model_load_imm perf state rd rs = model_load perf state rd perf.reg_ready.(rs)
+
+
+
+
+
 
 
 let unsigned_mul a b =
@@ -673,30 +573,44 @@ let get_insn_info state =
     for i = 0 to (len - 1) do new_profile.(i) <- state.profile.(i) done;
     state.profile <- new_profile
   end;
-  if state.profile.(ip) == no_insn then 
-    state.profile.(ip) <- { disas = None; count = 0; exe_latency = 0; time_change = 0; is_target = false };
+  if state.profile.(ip) == no_insn then begin
+    let enc,dec,dis,sz = disas_inst state in
+    state.profile.(ip) <- { decoded = Some(dec); encoding = enc; disasm = dis; size = sz; 
+                            count = 0; exe_latency = 0; time_change = 0; is_target = false };
+  end;
   state.profile.(ip)
+
+
+let run_op op rd_val rs_val =
+  let open Ast in
+  match op with
+  | ADD -> Int64.add rd_val rs_val
+  | SUB -> Int64.sub rd_val rs_val
+  | AND -> Int64.logand rd_val rs_val
+  | OR  -> Int64.logor rd_val rs_val
+  | XOR -> Int64.logxor rd_val rs_val
+  | MUL -> unsigned_mul rd_val rs_val
+  | SAR -> Int64.shift_right rd_val (Int64.to_int rs_val)
+  | SAL -> Int64.shift_left rd_val (Int64.to_int rs_val)
+  | SHR -> Int64.shift_right_logical rd_val (Int64.to_int rs_val)
+  | IMUL ->Int64.mul rd_val rs_val
+  | _ -> raise Codec.UnknownInstruction
 
 
 let run_inst perf state =
   log_ip state;
   let i = get_insn_info state in
   state.info <- i;
-  if state.info.disas == None then state.info.disas <- Some(disas_inst state);
   i.count <- 1 + i.count;
-  if state.is_target then begin
+  if state.is_target then begin (* mark insn if it was the target of a jmp/call *)
     state.is_target <- false;
     state.info.is_target <- true;
   end;
-  let first_byte = fetch_first state in
-  let (hi,lo) = split_byte first_byte in
-  let second_byte = fetch state in
-  let (rd,rs) = split_byte second_byte in
-  match hi,lo with
-  | 0,0 -> begin
-      terminate_output state;
+  state.ip <- Int64.add state.ip (Int64.of_int i.size);  (* FIXME: add and use field next_ip *)
+  match i.decoded with
+  | Some(Ctl1(RET,Reg(rs))) -> begin
       let ret_addr = state.regs.(rs) in (* return instruction *)
-      model_return perf state rs;
+      (* model_return perf state rs; *)
       state.ip <- ret_addr;
       if state.show then add_result state.plot "";
       if ret_addr <= Int64.zero then begin
@@ -706,37 +620,72 @@ let run_inst perf state =
             state.message <- Some (Printf.sprintf "\nTerminating. Return to address %Lx\n" ret_addr)
         end
     end
-  | 0,1 -> begin
-             if state.regs.(0) = Int64.zero then begin
-               model_alu_imm perf state 0;
-               wr_reg state 0 (perform_input 0)
-             end else if state.regs.(0) = Int64.one then begin
-               model_alu_imm perf state 0;
-               wr_reg state 0 (perform_input 1)
-             end else if state.regs.(0) = Int64.of_int 2 then begin
-               model_nop perf state; terminate_output state; perform_output 0 state.regs.(1)
-             end else
-               raise (UnknownInstructionAt (Int64.to_int state.ip))
-           end
-  | 1,0 -> model_alu_reg perf state rd rs; wr_reg state rd (Int64.add state.regs.(rd) state.regs.(rs))
-  | 1,1 -> model_alu_reg perf state rd rs; wr_reg state rd (Int64.sub state.regs.(rd) state.regs.(rs))
-  | 1,2 -> model_alu_reg perf state rd rs; wr_reg state rd (Int64.logand state.regs.(rd) state.regs.(rs))
-  | 1,3 -> model_alu_reg perf state rd rs; wr_reg state rd (Int64.logor state.regs.(rd) state.regs.(rs))
-  | 1,4 -> model_alu_reg perf state rd rs; wr_reg state rd (Int64.logxor state.regs.(rd) state.regs.(rs))
-  | 1,5 -> model_mul_reg perf state rd rs; wr_reg state rd (unsigned_mul state.regs.(rd) state.regs.(rs))
-  | 1,6 -> model_alu_reg perf state rd rs; wr_reg state rd (Int64.shift_right state.regs.(rd) (Int64.to_int state.regs.(rs)))
-  | 1,7 -> model_alu_reg perf state rd rs; wr_reg state rd (Int64.shift_left state.regs.(rd) (Int64.to_int state.regs.(rs)))
-  | 1,8 -> model_alu_reg perf state rd rs; wr_reg state rd (Int64.shift_right_logical state.regs.(rd) (Int64.to_int state.regs.(rs)))
-  | 1,9 -> model_mul_reg perf state rd rs; wr_reg state rd (Int64.mul state.regs.(rd) state.regs.(rs))
-  | 2,1 -> model_mov_reg perf state rd rs; wr_reg state rd state.regs.(rs)
-  | 3,1 -> begin
-      model_load perf state rd rs state.regs.(rs);
-      wr_reg state rd (rd_mem state state.regs.(rs))
+  | Some(Alu2(op,Reg(rs),Reg(rd))) when op <> LEA -> begin
+      let rd_val = state.regs.(rd) in
+      let rs_val = state.regs.(rs) in
+      let result = run_op op rd_val rs_val in
+      wr_reg state rd result
     end
-  | 3,9 -> begin
-      model_store perf state rd rs state.regs.(rs);
-      wr_mem state state.regs.(rs) state.regs.(rd)
+  | Some(Alu2(op,Imm(Value(imm)),Reg(rd))) when op <> LEA -> begin
+      let rd_val = state.regs.(rd) in
+      let result = run_op op rd_val imm in
+      wr_reg state rd result
     end
+  | Some(Alu2(LEA,am,Reg(rd))) -> begin
+      let result = match am with
+      | EaS(rs) -> state.regs.(rs)
+      | EaZ(rz, shamt) -> Int64.shift_left state.regs.(rz) shamt
+      | EaZS(rs, rz, shamt) -> Int64.add state.regs.(rs) (Int64.shift_left state.regs.(rz) shamt)
+      | EaD(Value(imm)) -> imm
+      | EaDS(Value(imm), rs) -> Int64.add imm state.regs.(rs)
+      | EaDZ(Value(imm), rz, shamt) -> Int64.add imm (Int64.shift_left state.regs.(rz) shamt)
+      | EaDZS(Value(imm), rs, rz, shamt) -> 
+             Int64.add (Int64.add imm state.regs.(rs)) (Int64.shift_left state.regs.(rz) shamt)
+      | _ -> raise Codec.UnknownInstruction
+      in 
+      wr_reg state rd result
+    end
+  | Some(Move2(MOV,from,Reg(rd))) -> begin
+      let result = match from with
+      | Reg(rs) -> state.regs.(rs)
+      | EaS(rs) -> rd_mem state state.regs.(rs)
+      | Imm(Value(imm)) -> imm
+      | EaDS(Value(imm),rs) -> rd_mem state (Int64.add imm state.regs.(rs))
+      | _ -> raise Codec.UnknownInstruction
+      in
+      wr_reg state rd result
+    end
+  | Some(Move2(MOV,Reg(rd),EaS(rs))) -> wr_mem state state.regs.(rs) state.regs.(rd)
+  | Some(Move2(MOV,Reg(rd),EaDS(Value(imm), rs))) -> wr_mem state (Int64.add imm state.regs.(rs)) state.regs.(rd)
+  | Some(Ctl2(CALL,EaD(Value(imm)),Reg(rd))) -> begin
+      wr_reg state rd state.ip;
+      state.is_target <- true;
+      state.ip <- imm
+    end
+  | Some(Ctl1(JMP,EaD(Value(imm)))) -> begin
+      if state.show then add_result state.plot "";
+      state.is_target <- true;
+      state.ip <- imm
+    end
+  | Some(Ctl3(CBcc(cond),opspec,Reg(rd),EaD(Value(imm)))) -> begin
+      if state.show then add_result state.plot "";
+      let op = match opspec with
+      | Reg(rs) -> state.regs.(rs)
+      | Imm(Value(imm)) -> imm
+      | _ -> raise Codec.UnknownInstruction
+      in
+      let taken = eval_condition cond state.regs.(rd) op in
+      if taken then begin
+        state.ip <- imm;
+        state.is_target <- true
+      end
+    end
+  | _ -> raise Codec.UnknownInstruction
+
+
+
+
+(*
   | 4,_ | 5,_ | 6,_ | 7,_ -> begin (* instructions with 2 bytes + 1 immediate *)
       let imm = fetch_imm state in
       let qimm = imm_to_qimm imm in
@@ -748,14 +697,12 @@ let run_inst perf state =
           state.ip <- qimm (* call *)
         end
       | 4,0xF -> begin
-          terminate_output state; 
           model_jmp perf state;
           if state.show then add_result state.plot "";
           state.is_target <- true;
           state.ip <- qimm (* jmp *)
         end
       | 4,_ -> begin
-          terminate_output state;
           let taken = eval_condition lo state.regs.(rd) state.regs.(rs) in
           let ops_ready = max perf.reg_ready.(rd) perf.reg_ready.(rs) in
           model_cond_branch perf state (Int64.to_int state.ip) imm taken ops_ready;
@@ -765,30 +712,9 @@ let run_inst perf state =
             state.is_target <- true;
           end
         end
-      | 5,0 -> model_alu_imm perf state rd; wr_reg state rd (Int64.add state.regs.(rd) qimm)
-      | 5,1 -> model_alu_imm perf state rd; wr_reg state rd (Int64.sub state.regs.(rd) qimm)
-      | 5,2 -> model_alu_imm perf state rd; wr_reg state rd (Int64.logand state.regs.(rd) qimm)
-      | 5,3 -> model_alu_imm perf state rd; wr_reg state rd (Int64.logor state.regs.(rd) qimm)
-      | 5,4 -> model_alu_imm perf state rd; wr_reg state rd (Int64.logxor state.regs.(rd) qimm)
-      | 5,5 -> model_mul_imm perf state rd; wr_reg state rd (unsigned_mul state.regs.(rd) qimm)
-      | 5,6 -> model_alu_imm perf state rd; wr_reg state rd (Int64.shift_right state.regs.(rd) imm)
-      | 5,7 -> model_alu_imm perf state rd; wr_reg state rd (Int64.shift_left state.regs.(rd) imm)
-      | 5,8 -> model_alu_imm perf state rd; wr_reg state rd (Int64.shift_right_logical state.regs.(rd) imm)
-      | 5,9 -> model_mul_imm perf state rd; wr_reg state rd (Int64.mul state.regs.(rd) qimm)
-      | 6,4 -> model_mov_imm perf state rd; wr_reg state rd qimm
-      | 7,5 -> begin
-          let a = Int64.add qimm state.regs.(rs) in
-          model_load perf state rd rs a;
-          wr_reg state rd (rd_mem state a)
-        end
-      | 7,0xD -> begin
-          let a = Int64.add qimm state.regs.(rs) in
-          model_store perf state rd rs a;
-          wr_mem state a state.regs.(rd)
-        end
-      | _ -> raise (UnknownInstructionAt (Int64.to_int state.ip))
-    end
-  | 8,_ | 9,_ | 10,_ | 11,_ -> begin (* leaq *)
+*)
+(*
+  | 8,_ | 9,_ | 10,_ | 11,_ -> begin // leaq
       let has_third_byte = hi = 9 || hi = 11 in
       let has_imm = hi = 10 || hi = 11 in
       let (rz,sh) = if has_third_byte then split_byte (fetch state) else 0,0 in
@@ -804,13 +730,66 @@ let run_inst perf state =
       model_leaq perf state rd ops_ready;
       wr_reg state rd ea
     end
+*)
+
+(*
+  | 1,0 -> model_alu_reg perf state rd rs; wr_reg state rd (Int64.add state.regs.(rd) state.regs.(rs))
+  | 1,1 -> model_alu_reg perf state rd rs; wr_reg state rd (Int64.sub state.regs.(rd) state.regs.(rs))
+  | 1,2 -> model_alu_reg perf state rd rs; wr_reg state rd (Int64.logand state.regs.(rd) state.regs.(rs))
+  | 1,3 -> model_alu_reg perf state rd rs; wr_reg state rd (Int64.logor state.regs.(rd) state.regs.(rs))
+  | 1,4 -> model_alu_reg perf state rd rs; wr_reg state rd (Int64.logxor state.regs.(rd) state.regs.(rs))
+  | 1,5 -> model_mul_reg perf state rd rs; wr_reg state rd (unsigned_mul state.regs.(rd) state.regs.(rs))
+  | 1,6 -> model_alu_reg perf state rd rs; wr_reg state rd (Int64.shift_right state.regs.(rd) (Int64.to_int state.regs.(rs)))
+  | 1,7 -> model_alu_reg perf state rd rs; wr_reg state rd (Int64.shift_left state.regs.(rd) (Int64.to_int state.regs.(rs)))
+  | 1,8 -> model_alu_reg perf state rd rs; wr_reg state rd (Int64.shift_right_logical state.regs.(rd) (Int64.to_int state.regs.(rs)))
+  | 1,9 -> model_mul_reg perf state rd rs; wr_reg state rd (Int64.mul state.regs.(rd) state.regs.(rs))
+*)
+
+(*
+  | 2,1 -> model_mov_reg perf state rd rs; wr_reg state rd state.regs.(rs)
+  | 3,1 -> begin
+      model_load perf state rd rs state.regs.(rs);
+      wr_reg state rd (rd_mem state state.regs.(rs))
+    end
+  | 3,9 -> begin
+      model_store perf state rd rs state.regs.(rs);
+      wr_mem state state.regs.(rs) state.regs.(rd)
+    end
+*)
+(*
+      | 5,0 -> model_alu_imm perf state rd; wr_reg state rd (Int64.add state.regs.(rd) qimm)
+      | 5,1 -> model_alu_imm perf state rd; wr_reg state rd (Int64.sub state.regs.(rd) qimm)
+      | 5,2 -> model_alu_imm perf state rd; wr_reg state rd (Int64.logand state.regs.(rd) qimm)
+      | 5,3 -> model_alu_imm perf state rd; wr_reg state rd (Int64.logor state.regs.(rd) qimm)
+      | 5,4 -> model_alu_imm perf state rd; wr_reg state rd (Int64.logxor state.regs.(rd) qimm)
+      | 5,5 -> model_mul_imm perf state rd; wr_reg state rd (unsigned_mul state.regs.(rd) qimm)
+      | 5,6 -> model_alu_imm perf state rd; wr_reg state rd (Int64.shift_right state.regs.(rd) imm)
+      | 5,7 -> model_alu_imm perf state rd; wr_reg state rd (Int64.shift_left state.regs.(rd) imm)
+      | 5,8 -> model_alu_imm perf state rd; wr_reg state rd (Int64.shift_right_logical state.regs.(rd) imm)
+      | 5,9 -> model_mul_imm perf state rd; wr_reg state rd (Int64.mul state.regs.(rd) qimm)
+*)
+(*
+      | 6,4 -> model_mov_imm perf state rd; wr_reg state rd qimm
+      | 7,5 -> begin
+          let a = Int64.add qimm state.regs.(rs) in
+          model_load perf state rd rs a;
+          wr_reg state rd (rd_mem state a)
+        end
+      | 7,0xD -> begin
+          let a = Int64.add qimm state.regs.(rs) in
+          model_store perf state rd rs a;
+          wr_mem state a state.regs.(rd)
+        end
+      | _ -> raise (UnknownInstructionAt (Int64.to_int state.ip))
+*)
+(*
+    end
   | 15,_ -> begin (* cbcc with both imm and target *)
       let imm = fetch_imm state in
       let qimm = imm_to_qimm imm in
       let a_imm = fetch_imm state in
       let q_a_imm = imm_to_qimm a_imm in
       let taken = eval_condition lo state.regs.(rd) qimm in
-      terminate_output state;
       model_cond_branch perf state (Int64.to_int state.ip) imm taken perf.reg_ready.(rd);
       if state.show then add_result state.plot (if taken then "<T>" else "<NT>");
       if (taken) then begin
@@ -819,6 +798,7 @@ let run_inst perf state =
       end
     end
   | _ -> raise (UnknownInstructionAt (Int64.to_int state.ip))
+*)
 
 
 let run perf state =
@@ -826,7 +806,7 @@ let run perf state =
   while state.running && state.ip >= Int64.zero do
     run_inst perf state;
     if state.show then begin
-      print_plotline state.plot perf.perf_model;
+      print_plotline state perf.perf_model;
       match state.message with
       | Some(s) -> Printf.printf "%s" s
       | None -> ()
@@ -845,14 +825,14 @@ let run perf state =
     for i = 0 to max do
       if state.profile.(i) <> no_insn then begin
         let insn = state.profile.(i) in
-        let d = match insn.disas with None -> "err" | Some(e) -> Printer.print_insn e in
+        let d = match insn.decoded with None -> "err" | Some(e) -> Printer.print_insn e in
         let with_lat = insn.exe_latency <> 0 in
         if insn.is_target then Printf.printf "%x:\n" i;
         if with_lat then begin
           let avg_lat = (float_of_int insn.exe_latency) /. (float_of_int insn.count) in
-          Printf.printf "%6x : %8d  %6.2f  %-40s\n" i insn.count avg_lat d
+          Printf.printf "%6X : %8d  %6.2f  %-40s\n" i insn.count avg_lat d
         end else begin
-          Printf.printf "%6x : %8d          %-40s\n" i insn.count d
+          Printf.printf "%6X : %8d          %-40s\n" i insn.count d
         end
       end
     done

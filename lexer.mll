@@ -22,7 +22,59 @@ let translating = ref false
 
 let zap_dollar s = String.sub s 1 ((String.length s) - 1)
 
+let encode_reg s = match s with
+    | "%al" -> 0
+    | "%bl" -> 1
+    | "%cl" -> 2
+    | "%dl" -> 3
+    | "%bpl" -> 4
+    | "%sil" -> 5
+    | "%dil" -> 6
+    | "%spl" -> 7
+    | "%r8l" -> 8
+    | "%r9l" -> 9
+    | "%r10l" -> 10
+    | "%r11l" -> 11
+    | "%r12l" -> 12
+    | "%r13l" -> 13
+    | "%r14l" -> 14
+    | "%r15l" -> 15
+    | "%eax" -> 0
+    | "%ebx" -> 1
+    | "%ecx" -> 2
+    | "%edx" -> 3
+    | "%ebp" -> 4
+    | "%esi" -> 5
+    | "%edi" -> 6
+    | "%esp" -> 7
+    | "%r8d" -> 8
+    | "%r9d" -> 9
+    | "%r10d" -> 10
+    | "%r11d" -> 11
+    | "%r12d" -> 12
+    | "%r13d" -> 13
+    | "%r14d" -> 14
+    | "%r15d" -> 15
+    | "%rax" -> 0
+    | "%rbx" -> 1
+    | "%rcx" -> 2
+    | "%rdx" -> 3
+    | "%rbp" -> 4
+    | "%rsi" -> 5
+    | "%rdi" -> 6
+    | "%rsp" -> 7
+    | "%r8" -> 8
+    | "%r9" -> 9
+    | "%r10" -> 10
+    | "%r11" -> 11
+    | "%r12" -> 12
+    | "%r13" -> 13
+    | "%r14" -> 14
+    | "%r15" -> 15
+    | "%rip" -> -1
+    | _ -> raise (Error "unknown register") (* FIXME: position? *)
 }
+
 
 let ws = [' ' '\t']
 let nl = ['\n']
@@ -30,6 +82,7 @@ let digit = ['0'-'9']
 let alpha = ['a'-'z' 'A'-'Z' '_' '.']
 let id    = alpha (alpha|digit)*
 let num   = '-'? digit+
+let hex   = '-'? '0' 'x' digit+
 let start_proc = ".cfi_startproc"
 let directive = ".text" | ".globl" | ".size" | ".section" | ".file" | ".ident"
     |  ".p2align" |  ".data" 
@@ -64,9 +117,9 @@ rule read = parse
 | ')'       { RPAR          }
 | ','       { COMMA         }
 | ':'       { COLON         }
-| regs64    { REG(get lexbuf) }
-| regs32    { REG(get lexbuf) }
-| regs8     { REG(get lexbuf) }
+| regs64    { REG(encode_reg (get lexbuf)) }
+| regs32    { REG(encode_reg (get lexbuf)) }
+| regs8     { REG(encode_reg (get lexbuf)) }
 | "movabsq" { ALU2(MOVABSQ) }
 | "leaq"    { ALU2(LEA)   }
 | "addq"     { ALU2(ADD)   }
@@ -145,7 +198,8 @@ rule read = parse
 | ".comm"   { COMM }
 | ".align"  { ALIGN }
 | "$"       { DOLLAR }
-| num       { NUM(get lexbuf) }
+| num       { NUM(Int64.of_string (get lexbuf)) }
+| hex       { NUM(Int64.of_string (get lexbuf)) }
 | id        { ID(get lexbuf)}
 | eof       { EOF           }
 | _         { raise (Error (Printf.sprintf "unhandled '%s' - in: " (get lexbuf))) }

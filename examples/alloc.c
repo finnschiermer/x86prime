@@ -1,13 +1,13 @@
 
 long* cur_allocator;
-long allocator_base;
+
 
 void init_allocator() {
-  cur_allocator = &allocator_base;
+  cur_allocator = (long*) 0x30000000;
 }
 
 long* allocate(long num_entries) {
   long* res = cur_allocator;
-  cur_allocator = &cur_allocator[num_entries];
+  cur_allocator = res + num_entries;
   return res;
 }

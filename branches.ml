@@ -5,9 +5,9 @@ type generator_info = Unknown | Chosen of Ast.line | Conflict of string
 let rewrite_bcc condition (flag_setter : generator_info) =
   let open Ast in
   match condition, flag_setter with
-  | Ctl1(Jcc(cond),lab), Chosen(Alu2(TEST,a,b)) -> Ok(Ctl3(CBcc(Ast.rev_cond cond),Imm("0"),b,lab))
+  | Ctl1(Jcc(cond),lab), Chosen(Alu2(TEST,a,b)) -> Ok(Ctl3(CBcc(Ast.rev_cond cond),Imm(Value(Int64.zero)),b,lab))
   | Ctl1(Jcc(cond),lab), Chosen(Alu2(CMP,a,b)) -> Ok(Ctl3(CBcc(Ast.rev_cond cond),a,b,lab))
-  | Ctl1(Jcc(cond),lab), Chosen(Alu2(op,a,b)) -> Ok(Ctl3(CBcc(Ast.rev_cond cond),Imm("0"),b,lab))
+  | Ctl1(Jcc(cond),lab), Chosen(Alu2(op,a,b)) -> Ok(Ctl3(CBcc(Ast.rev_cond cond),Imm(Value(Int64.zero)),b,lab))
   | Ctl1(Jcc(cond),lab), Unknown -> Error ("cannot convert", Printer.print_insn condition)
   | insn,Conflict(lab) -> Error ("cannot join with", Printer.print_insn insn)
   | insn,_ -> Ok(insn)
@@ -49,11 +49,11 @@ let rec fill_env_loop env lines (flag_setter : generator_info) =
       let resolution = unify_inbound_flow env lab flag_setter in
       fill_env_loop ((lab,resolution) :: env) others resolution
     end
-  | Ok(Ctl1(Jcc(_),EaD(lab))) :: others -> begin
+  | Ok(Ctl1(Jcc(_),EaD(Expr(lab)))) :: others -> begin
       let resolution = unify_inbound_flow env lab flag_setter in
       fill_env_loop ((lab,resolution) :: env) others flag_setter
     end
-    | Ok(Ctl1(JMP,EaD(lab))) :: others -> begin
+    | Ok(Ctl1(JMP,EaD(Expr(lab)))) :: others -> begin
       let resolution = unify_inbound_flow env lab flag_setter in
       fill_env_loop ((lab,resolution) :: env) others Unknown
     end
@@ -85,12 +85,12 @@ let rec elim_loop env lines flag_setter =
       | Alu2(CMOVcc(cc),s,d) -> begin
           let labname = next_lab_name () in
           let lab = Label(labname) in
-          let lines = Ok(Ctl1(Jcc(Ast.rev_cond cc),EaD(labname))) :: Ok(Move2(MOV,s,d)) :: Ok(lab) :: other_lines in
+          let lines = Ok(Ctl1(Jcc(Ast.rev_cond cc),EaD(Expr(labname)))) :: Ok(Move2(MOV,s,d)) :: Ok(lab) :: other_lines in
           (elim_loop env lines flag_setter)
         end
       | Alu2(_)                        -> line :: (elim_loop env other_lines (Chosen insn))
       | Ctl0(RET) | Ctl1(CALL,_)       -> line :: (elim_loop env other_lines Unknown)
-      | Ctl1(JMP,EaD(target)) -> begin
+      | Ctl1(JMP,EaD(Expr(target))) -> begin
           if target.[0] = '.' then
             line :: (elim_loop env other_lines Unknown)
           else

@@ -41,18 +41,51 @@ let print_opc opc =
   | MOVABSQ -> "movabsq"
 ;;
 
+let reg_name reg =
+  match reg with
+  | 0 -> "%rax"
+  | 1 -> "%rbx"
+  | 2 -> "%rcx"
+  | 3 -> "%rdx"
+  | 4 -> "%rbp"
+  | 5 -> "%rsi"
+  | 6 -> "%rdi"
+  | 7 -> "%rsp"
+  | 8 -> "%r8"
+  | 9 -> "%r9"
+  | _ -> Printf.sprintf "%%r%-2d" reg
+
+
+let print_imm (imm : Ast.imm) =
+  let open Ast in
+  match imm with
+  | Value(v) -> begin
+      let i = Int64.to_int v in
+      if i < 0 then Printf.sprintf "-0x%X" (- i)
+      else Printf.sprintf "0x%X" i
+    end
+  | Expr(e) -> e
+
+let print_sh sh =
+  match sh with
+  | 0 -> "1"
+  | 1 -> "2"
+  | 2 -> "4"
+  | 3 -> "8"
+  | _ -> "?"
+
 let print_arg arg =
   let open Ast in 
   match arg with
-  | Reg(s) -> s
-  | Imm(s) -> Printf.sprintf "$%s" s
-  | EaS(s1) -> Printf.sprintf "(%s)" s1
-  | EaZ(s1,s2) -> Printf.sprintf "(,%s,%s)" s1 s2
-  | EaZS(s1,s2,s3) -> Printf.sprintf "(%s, %s, %s)" s1 s2 s3
-  | EaD(s) -> Printf.sprintf "%s" s
-  | EaDZ(s1,s2,s3) -> Printf.sprintf "%s(, %s, %s)" s1 s2 s3
-  | EaDS(s, s1) -> Printf.sprintf "%s(%s)" s s1
-  | EaDZS(s, s1, s2,s3) -> Printf.sprintf "%s(%s, %s, %s)" s s1 s2 s3
+  | Reg(s) -> reg_name s
+  | Imm(s) -> Printf.sprintf "$%s" (print_imm s)
+  | EaS(s1) -> Printf.sprintf "(%s)" (reg_name s1)
+  | EaZ(s1,s2) -> Printf.sprintf "(,%s,%s)" (reg_name s1) (print_sh s2)
+  | EaZS(s1,s2,s3) -> Printf.sprintf "(%s, %s, %s)" (reg_name s1) (reg_name s2) (print_sh s3)
+  | EaD(s) -> Printf.sprintf "%s" (print_imm s)
+  | EaDZ(s1,s2,s3) -> Printf.sprintf "%s(, %s, %s)" (print_imm s1) (reg_name s2) (print_sh s3)
+  | EaDS(s, s1) -> Printf.sprintf "%s(%s)" (print_imm s) (reg_name s1)
+  | EaDZS(s, s1, s2,s3) -> Printf.sprintf "%s(%s, %s, %s)" (print_imm s) (reg_name s1) (reg_name s2) (print_sh s3)
 
 let print_insn insn =
   let open Ast in
@@ -65,9 +98,9 @@ let print_insn insn =
   | Ctl2(opc,a,b) -> Printf.sprintf "    %s %s, %s" (print_opc opc) (print_arg a) (print_arg b)
   | Ctl1(opc,a) -> Printf.sprintf "    %s %s" (print_opc opc) (print_arg a)
   | Ctl0(opc) -> Printf.sprintf "    %s" (print_opc opc)
-  | Quad(d) -> Printf.sprintf "    .quad %s" d
-  | Comm(nm,sz,aln) -> Printf.sprintf "    .comm %s,%d,%d" nm sz aln
-  | Align(d) -> Printf.sprintf "    .align %s" d
+  | Quad(i) -> Printf.sprintf "    .quad %s" (print_imm i)
+  | Comm(i,sz,aln) -> Printf.sprintf "    .comm %s,%d,%d" (print_imm i) sz aln
+  | Align(d) -> Printf.sprintf "    .align %d" d
   | Directive(s) -> Printf.sprintf "    %s" s
   | Ignored(s) -> Printf.sprintf "    %s" s
   | Function(s) -> Printf.sprintf "    .type %s, @function" s

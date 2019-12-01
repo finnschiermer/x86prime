@@ -597,7 +597,74 @@ let run_op op rd_val rs_val =
   | _ -> raise Codec.UnknownInstruction
 
 
-let run_inst perf state =
+let model_perf state perf =
+  let i = state.info in
+  match i.decoded with
+  | Some(Ctl1(RET,Reg(rs))) -> begin
+      model_return perf state rs;
+    end
+  | Some(Alu2(op,Reg(rs),Reg(rd))) when op <> LEA -> begin
+      match op with
+      | MUL | IMUL -> model_mul_reg perf state rd rs
+      | _ -> model_alu_reg perf state rd rs
+    end
+  | Some(Alu2(op,Imm(Value(imm)),Reg(rd))) when op <> LEA -> begin
+      match op with
+      | MUL | IMUL -> model_mul_imm perf state rd
+      | _ -> model_alu_imm perf state rd
+    end
+  | Some(Alu2(LEA,am,Reg(rd))) -> begin
+      let result = match am with
+      | EaS(rs) -> state.regs.(rs)
+      | EaZ(rz, shamt) -> Int64.shift_left state.regs.(rz) shamt
+      | EaZS(rs, rz, shamt) -> Int64.add state.regs.(rs) (Int64.shift_left state.regs.(rz) shamt)
+      | EaD(Value(imm)) -> imm
+      | EaDS(Value(imm), rs) -> Int64.add imm state.regs.(rs)
+      | EaDZ(Value(imm), rz, shamt) -> Int64.add imm (Int64.shift_left state.regs.(rz) shamt)
+      | EaDZS(Value(imm), rs, rz, shamt) -> 
+             Int64.add (Int64.add imm state.regs.(rs)) (Int64.shift_left state.regs.(rz) shamt)
+      | _ -> raise Codec.UnknownInstruction
+      in 
+      wr_reg state rd result
+    end
+  | Some(Move2(MOV,from,Reg(rd))) -> begin
+      let result = match from with
+      | Reg(rs) -> state.regs.(rs)
+      | EaS(rs) -> rd_mem state state.regs.(rs)
+      | Imm(Value(imm)) -> imm
+      | EaDS(Value(imm),rs) -> rd_mem state (Int64.add imm state.regs.(rs))
+      | _ -> raise Codec.UnknownInstruction
+      in
+      wr_reg state rd result
+    end
+  | Some(Move2(MOV,Reg(rd),EaS(rs))) -> wr_mem state state.regs.(rs) state.regs.(rd)
+  | Some(Move2(MOV,Reg(rd),EaDS(Value(imm), rs))) -> wr_mem state (Int64.add imm state.regs.(rs)) state.regs.(rd)
+  | Some(Ctl2(CALL,EaD(Value(imm)),Reg(rd))) -> begin
+      wr_reg state rd state.ip;
+      state.is_target <- true;
+      state.ip <- imm
+    end
+  | Some(Ctl1(JMP,EaD(Value(imm)))) -> begin
+      if state.show then add_result state.plot "";
+      state.is_target <- true;
+      state.ip <- imm
+    end
+  | Some(Ctl3(CBcc(cond),opspec,Reg(rd),EaD(Value(imm)))) -> begin
+      if state.show then add_result state.plot "";
+      let op = match opspec with
+      | Reg(rs) -> state.regs.(rs)
+      | Imm(Value(imm)) -> imm
+      | _ -> raise Codec.UnknownInstruction
+      in
+      let taken = eval_condition cond state.regs.(rd) op in
+      if taken then begin
+        state.ip <- imm;
+        state.is_target <- true
+      end
+    end
+  | _ -> raise Codec.UnknownInstruction
+
+let run_inst state =
   log_ip state;
   let i = get_insn_info state in
   state.info <- i;
@@ -804,7 +871,7 @@ let run_inst perf state =
 let run perf state =
   state.running <- true;
   while state.running && state.ip >= Int64.zero do
-    run_inst perf state;
+    run_inst state;
     if state.show then begin
       print_plotline state perf.perf_model;
       match state.message with

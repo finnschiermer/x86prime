@@ -60,9 +60,11 @@ type state = {
     mutable ims : int list;
     mutable tracefile : out_channel option;
     mutable ip : Int64.t;
+    mutable next_ip : Int64.t;
     mutable message : string option;
     mutable profile : insn_info array;
     mutable is_target : bool;
+    mutable data_address : Int64.t;
     plot : plotline;
     regs : registers;
     mem : Memory.t;
@@ -77,9 +79,11 @@ let create () =
       ops = []; 
       ims = []; 
       ip = Int64.zero;
+      next_ip = Int64.zero;
       message = None;
       profile = Array.make 16 no_insn;
       is_target = true;
+      data_address = Int64.zero;
       plot = {
           count = 0; iptr = 0;
           disasm = "";
@@ -100,7 +104,7 @@ let add_event state code time =
 
 let add_result line res = line.result <- Printf.sprintf "%-50s" res
 
-let line_indent = "                                                                                                                "
+let line_indent = "                                                                                                                 "
 let line_background = Bytes.of_string "|                |                |                |                |                |"
 let line_separator = "|----------------|----------------|----------------|----------------|----------------|"
 let background_length = 80
@@ -374,7 +378,7 @@ let disas_inst state =
   let numlist = List.flatten [(List.map map_ops state.ops); (List.map map_imm state.ims)] in
   let numstring = String.concat "" numlist in
   let len_nums = String.length numstring in
-  let void = String.make (50 - len_nums) ' ' in
+  let void = String.make (30 - len_nums) ' ' in
   let encoding = String.concat "" [numstring; void] in
   encoding, decoded, disasm, size
 
@@ -462,7 +466,7 @@ let model_cond_branch perf state from_ip to_ip taken ops_ready =
   let exec_start = Resource.acquire perf.branch ready in
   let exec_done = exec_start + 1 in
   let time_retire = Resource.acquire perf.retire (exec_done + 1) in
-  let predicted = Predictors.predict_and_train perf.bp from_ip to_ip taken in
+  let predicted = Predictors.predict_and_train perf.bp (Int64.to_int from_ip) (Int64.to_int to_ip) taken in
   if not predicted then
     Resource.use_all perf.fetch_start exec_done
   else if taken then
@@ -598,6 +602,7 @@ let run_op op rd_val rs_val =
 
 
 let model_perf state perf =
+  state.plot.events <- [];
   let i = state.info in
   match i.decoded with
   | Some(Ctl1(RET,Reg(rs))) -> begin
@@ -614,55 +619,41 @@ let model_perf state perf =
       | _ -> model_alu_imm perf state rd
     end
   | Some(Alu2(LEA,am,Reg(rd))) -> begin
-      let result = match am with
-      | EaS(rs) -> state.regs.(rs)
-      | EaZ(rz, shamt) -> Int64.shift_left state.regs.(rz) shamt
-      | EaZS(rs, rz, shamt) -> Int64.add state.regs.(rs) (Int64.shift_left state.regs.(rz) shamt)
-      | EaD(Value(imm)) -> imm
-      | EaDS(Value(imm), rs) -> Int64.add imm state.regs.(rs)
-      | EaDZ(Value(imm), rz, shamt) -> Int64.add imm (Int64.shift_left state.regs.(rz) shamt)
-      | EaDZS(Value(imm), rs, rz, shamt) -> 
-             Int64.add (Int64.add imm state.regs.(rs)) (Int64.shift_left state.regs.(rz) shamt)
+      let ops_ready = match am with
+      | EaS(rs) -> perf.reg_ready.(rs)
+      | EaZ(rz, shamt) -> perf.reg_ready.(rz)
+      | EaZS(rs, rz, shamt) -> max perf.reg_ready.(rs) perf.reg_ready.(rz)
+      | EaD(Value(imm)) -> 0
+      | EaDS(Value(imm), rs) -> perf.reg_ready.(rs)
+      | EaDZ(Value(imm), rz, shamt) -> perf.reg_ready.(rz)
+      | EaDZS(Value(imm), rs, rz, shamt) -> max perf.reg_ready.(rs) perf.reg_ready.(rz)
       | _ -> raise Codec.UnknownInstruction
-      in 
-      wr_reg state rd result
+      in
+      model_leaq perf state rd ops_ready
     end
   | Some(Move2(MOV,from,Reg(rd))) -> begin
-      let result = match from with
-      | Reg(rs) -> state.regs.(rs)
-      | EaS(rs) -> rd_mem state state.regs.(rs)
-      | Imm(Value(imm)) -> imm
-      | EaDS(Value(imm),rs) -> rd_mem state (Int64.add imm state.regs.(rs))
+      match from with
+      | Reg(rs) -> model_mov_reg perf state rd rs
+      | EaS(rs) -> model_load perf state rd rs state.data_address
+      | Imm(Value(imm)) -> model_mov_imm perf state rd
+      | EaDS(Value(imm),rs) -> model_load perf state rd rs state.data_address
       | _ -> raise Codec.UnknownInstruction
-      in
-      wr_reg state rd result
     end
-  | Some(Move2(MOV,Reg(rd),EaS(rs))) -> wr_mem state state.regs.(rs) state.regs.(rd)
-  | Some(Move2(MOV,Reg(rd),EaDS(Value(imm), rs))) -> wr_mem state (Int64.add imm state.regs.(rs)) state.regs.(rd)
-  | Some(Ctl2(CALL,EaD(Value(imm)),Reg(rd))) -> begin
-      wr_reg state rd state.ip;
-      state.is_target <- true;
-      state.ip <- imm
-    end
-  | Some(Ctl1(JMP,EaD(Value(imm)))) -> begin
-      if state.show then add_result state.plot "";
-      state.is_target <- true;
-      state.ip <- imm
-    end
+  | Some(Move2(MOV,Reg(rd),EaS(rs))) -> model_store perf state rd rs state.data_address
+  | Some(Move2(MOV,Reg(rd),EaDS(Value(imm), rs))) -> model_store perf state rd rs state.data_address
+  | Some(Ctl2(CALL,EaD(Value(imm)),Reg(rd))) -> model_call perf state rd state.regs.(rd)
+  | Some(Ctl1(JMP,EaD(Value(imm)))) -> model_jmp perf state
   | Some(Ctl3(CBcc(cond),opspec,Reg(rd),EaD(Value(imm)))) -> begin
-      if state.show then add_result state.plot "";
-      let op = match opspec with
-      | Reg(rs) -> state.regs.(rs)
-      | Imm(Value(imm)) -> imm
+      let ops_ready = match opspec with
+      | Reg(rs) -> max perf.reg_ready.(rd) perf.reg_ready.(rs)
+      | Imm(_) -> perf.reg_ready.(rd)
       | _ -> raise Codec.UnknownInstruction
       in
-      let taken = eval_condition cond state.regs.(rd) op in
-      if taken then begin
-        state.ip <- imm;
-        state.is_target <- true
-      end
+      model_cond_branch perf state state.ip state.next_ip state.is_target ops_ready
     end
   | _ -> raise Codec.UnknownInstruction
+
+
 
 let run_inst state =
   log_ip state;
@@ -673,12 +664,11 @@ let run_inst state =
     state.is_target <- false;
     state.info.is_target <- true;
   end;
-  state.ip <- Int64.add state.ip (Int64.of_int i.size);  (* FIXME: add and use field next_ip *)
+  state.next_ip <- Int64.add state.ip (Int64.of_int i.size);
   match i.decoded with
   | Some(Ctl1(RET,Reg(rs))) -> begin
       let ret_addr = state.regs.(rs) in (* return instruction *)
-      (* model_return perf state rs; *)
-      state.ip <- ret_addr;
+      state.next_ip <- ret_addr;
       if state.show then add_result state.plot "";
       if ret_addr <= Int64.zero then begin
           log_ip state; (* final IP value should be added to trace *)
@@ -715,24 +705,36 @@ let run_inst state =
   | Some(Move2(MOV,from,Reg(rd))) -> begin
       let result = match from with
       | Reg(rs) -> state.regs.(rs)
-      | EaS(rs) -> rd_mem state state.regs.(rs)
+      | EaS(rs) -> begin
+          state.data_address <- state.regs.(rs);
+          rd_mem state state.data_address
+        end
       | Imm(Value(imm)) -> imm
-      | EaDS(Value(imm),rs) -> rd_mem state (Int64.add imm state.regs.(rs))
+      | EaDS(Value(imm),rs) -> begin
+          state.data_address <- Int64.add imm state.regs.(rs);
+          rd_mem state state.data_address
+        end
       | _ -> raise Codec.UnknownInstruction
       in
       wr_reg state rd result
     end
-  | Some(Move2(MOV,Reg(rd),EaS(rs))) -> wr_mem state state.regs.(rs) state.regs.(rd)
-  | Some(Move2(MOV,Reg(rd),EaDS(Value(imm), rs))) -> wr_mem state (Int64.add imm state.regs.(rs)) state.regs.(rd)
+  | Some(Move2(MOV,Reg(rd),EaS(rs))) -> begin
+      state.data_address <- state.regs.(rs);
+      wr_mem state state.data_address state.regs.(rd)
+    end
+  | Some(Move2(MOV,Reg(rd),EaDS(Value(imm), rs))) -> begin
+      state.data_address <- Int64.add imm state.regs.(rs);
+      wr_mem state state.data_address state.regs.(rd)
+    end
   | Some(Ctl2(CALL,EaD(Value(imm)),Reg(rd))) -> begin
-      wr_reg state rd state.ip;
+      wr_reg state rd state.next_ip;
       state.is_target <- true;
-      state.ip <- imm
+      state.next_ip <- imm
     end
   | Some(Ctl1(JMP,EaD(Value(imm)))) -> begin
       if state.show then add_result state.plot "";
       state.is_target <- true;
-      state.ip <- imm
+      state.next_ip <- imm
     end
   | Some(Ctl3(CBcc(cond),opspec,Reg(rd),EaD(Value(imm)))) -> begin
       if state.show then add_result state.plot "";
@@ -743,7 +745,7 @@ let run_inst state =
       in
       let taken = eval_condition cond state.regs.(rd) op in
       if taken then begin
-        state.ip <- imm;
+        state.next_ip <- imm;
         state.is_target <- true
       end
     end
@@ -751,133 +753,18 @@ let run_inst state =
 
 
 
-
-(*
-  | 4,_ | 5,_ | 6,_ | 7,_ -> begin (* instructions with 2 bytes + 1 immediate *)
-      let imm = fetch_imm state in
-      let qimm = imm_to_qimm imm in
-      match hi,lo with
-      | 4,0xE -> begin
-          wr_reg state rd state.ip; 
-          model_call perf state rd state.ip;
-          state.is_target <- true;
-          state.ip <- qimm (* call *)
-        end
-      | 4,0xF -> begin
-          model_jmp perf state;
-          if state.show then add_result state.plot "";
-          state.is_target <- true;
-          state.ip <- qimm (* jmp *)
-        end
-      | 4,_ -> begin
-          let taken = eval_condition lo state.regs.(rd) state.regs.(rs) in
-          let ops_ready = max perf.reg_ready.(rd) perf.reg_ready.(rs) in
-          model_cond_branch perf state (Int64.to_int state.ip) imm taken ops_ready;
-          if state.show then add_result state.plot (if taken then "<T>" else "<NT>");
-          if taken then begin
-            state.ip <- qimm;
-            state.is_target <- true;
-          end
-        end
-*)
-(*
-  | 8,_ | 9,_ | 10,_ | 11,_ -> begin // leaq
-      let has_third_byte = hi = 9 || hi = 11 in
-      let has_imm = hi = 10 || hi = 11 in
-      let (rz,sh) = if has_third_byte then split_byte (fetch state) else 0,0 in
-      let qimm = if has_imm then imm_to_qimm (fetch_imm state) else Int64.zero in
-      let hasS = lo land 1 = 1 in
-      let hasZ = lo land 2 = 2 in
-      let hasD = lo land 4 = 4 in
-      let ea = Int64.add (if hasS then state.regs.(rs) else Int64.zero)
-               (Int64.add (if hasZ then Int64.shift_left state.regs.(rz) sh else Int64.zero)
-               (if hasD then qimm else Int64.zero))
-      in
-      let ops_ready = max (if hasS then perf.reg_ready.(rs) else 0) (if hasZ then perf.reg_ready.(rz) else 0) in
-      model_leaq perf state rd ops_ready;
-      wr_reg state rd ea
-    end
-*)
-
-(*
-  | 1,0 -> model_alu_reg perf state rd rs; wr_reg state rd (Int64.add state.regs.(rd) state.regs.(rs))
-  | 1,1 -> model_alu_reg perf state rd rs; wr_reg state rd (Int64.sub state.regs.(rd) state.regs.(rs))
-  | 1,2 -> model_alu_reg perf state rd rs; wr_reg state rd (Int64.logand state.regs.(rd) state.regs.(rs))
-  | 1,3 -> model_alu_reg perf state rd rs; wr_reg state rd (Int64.logor state.regs.(rd) state.regs.(rs))
-  | 1,4 -> model_alu_reg perf state rd rs; wr_reg state rd (Int64.logxor state.regs.(rd) state.regs.(rs))
-  | 1,5 -> model_mul_reg perf state rd rs; wr_reg state rd (unsigned_mul state.regs.(rd) state.regs.(rs))
-  | 1,6 -> model_alu_reg perf state rd rs; wr_reg state rd (Int64.shift_right state.regs.(rd) (Int64.to_int state.regs.(rs)))
-  | 1,7 -> model_alu_reg perf state rd rs; wr_reg state rd (Int64.shift_left state.regs.(rd) (Int64.to_int state.regs.(rs)))
-  | 1,8 -> model_alu_reg perf state rd rs; wr_reg state rd (Int64.shift_right_logical state.regs.(rd) (Int64.to_int state.regs.(rs)))
-  | 1,9 -> model_mul_reg perf state rd rs; wr_reg state rd (Int64.mul state.regs.(rd) state.regs.(rs))
-*)
-
-(*
-  | 2,1 -> model_mov_reg perf state rd rs; wr_reg state rd state.regs.(rs)
-  | 3,1 -> begin
-      model_load perf state rd rs state.regs.(rs);
-      wr_reg state rd (rd_mem state state.regs.(rs))
-    end
-  | 3,9 -> begin
-      model_store perf state rd rs state.regs.(rs);
-      wr_mem state state.regs.(rs) state.regs.(rd)
-    end
-*)
-(*
-      | 5,0 -> model_alu_imm perf state rd; wr_reg state rd (Int64.add state.regs.(rd) qimm)
-      | 5,1 -> model_alu_imm perf state rd; wr_reg state rd (Int64.sub state.regs.(rd) qimm)
-      | 5,2 -> model_alu_imm perf state rd; wr_reg state rd (Int64.logand state.regs.(rd) qimm)
-      | 5,3 -> model_alu_imm perf state rd; wr_reg state rd (Int64.logor state.regs.(rd) qimm)
-      | 5,4 -> model_alu_imm perf state rd; wr_reg state rd (Int64.logxor state.regs.(rd) qimm)
-      | 5,5 -> model_mul_imm perf state rd; wr_reg state rd (unsigned_mul state.regs.(rd) qimm)
-      | 5,6 -> model_alu_imm perf state rd; wr_reg state rd (Int64.shift_right state.regs.(rd) imm)
-      | 5,7 -> model_alu_imm perf state rd; wr_reg state rd (Int64.shift_left state.regs.(rd) imm)
-      | 5,8 -> model_alu_imm perf state rd; wr_reg state rd (Int64.shift_right_logical state.regs.(rd) imm)
-      | 5,9 -> model_mul_imm perf state rd; wr_reg state rd (Int64.mul state.regs.(rd) qimm)
-*)
-(*
-      | 6,4 -> model_mov_imm perf state rd; wr_reg state rd qimm
-      | 7,5 -> begin
-          let a = Int64.add qimm state.regs.(rs) in
-          model_load perf state rd rs a;
-          wr_reg state rd (rd_mem state a)
-        end
-      | 7,0xD -> begin
-          let a = Int64.add qimm state.regs.(rs) in
-          model_store perf state rd rs a;
-          wr_mem state a state.regs.(rd)
-        end
-      | _ -> raise (UnknownInstructionAt (Int64.to_int state.ip))
-*)
-(*
-    end
-  | 15,_ -> begin (* cbcc with both imm and target *)
-      let imm = fetch_imm state in
-      let qimm = imm_to_qimm imm in
-      let a_imm = fetch_imm state in
-      let q_a_imm = imm_to_qimm a_imm in
-      let taken = eval_condition lo state.regs.(rd) qimm in
-      model_cond_branch perf state (Int64.to_int state.ip) imm taken perf.reg_ready.(rd);
-      if state.show then add_result state.plot (if taken then "<T>" else "<NT>");
-      if (taken) then begin
-        state.ip <- q_a_imm;
-        state.is_target <- true;
-      end
-    end
-  | _ -> raise (UnknownInstructionAt (Int64.to_int state.ip))
-*)
-
-
 let run perf state =
   state.running <- true;
   while state.running && state.ip >= Int64.zero do
     run_inst state;
+    model_perf state perf;
     if state.show then begin
       print_plotline state perf.perf_model;
       match state.message with
       | Some(s) -> Printf.printf "%s" s
       | None -> ()
-    end
+    end;
+    state.ip <- state.next_ip
   done;
   begin
     match state.tracefile with

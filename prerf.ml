@@ -82,7 +82,7 @@ let run entry =
               let id_latency = (!i_latency + !dec_latency) in
               let fd_queue_size = id_latency * !pipe_width in
               let alu_resource = Resource.create "arithmetic" (not !ooo) num_alus 1000 in
-              let p_control : Machine.perf = {
+              let p_control : Perf.perf = {
                   bp = begin match !p_type with
                        | "t" -> Predictors.create_taken_predictor ()
                        | "nt" -> Predictors.create_not_taken_predictor ()
@@ -110,7 +110,7 @@ let run entry =
                   perf_model = true;
                   profile = !profile;
                 } in
-              Machine.run p_control !machine;
+              Perf.run p_control !machine;
               if !print_perf then begin
                 let tries,miss = Predictors.predictor_get_results p_control.bp in
                 let mr = (float_of_int miss) /. (float_of_int (tries)) in

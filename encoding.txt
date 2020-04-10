@@ -1,91 +1,71 @@
-x86prime instructions and encoding
-----------------------------------
+2-addr format (2 bytes)
+000ooooo ddddxxxx (arithmetic, ret, stop, movq, indir-call, indir-jmp)
+   00000          stop
+   00001          call x,d (indirect call)
+   00010          jmp x (indirect jmp)
+   00011          ret x
+   00100          movq
+   1aaaa          arithmetic
 
-Encoding:                                   Assembler           Operation
+2-addr + 16-bit constant format (4 bytes)
+001ooooo ddddxxxx ii..16..ii (arithmetic, mov imm, call, jmp)
+   0aaaa                     arithmetic
+   10000                     mov imm
+   10010                     call imm(ip),d (direct relative call)
+   10011                     jmp imm(ip) (direct relative jump)
 
-00000000 0000ssss                           ret s               return from function call
-0001aaaa ddddssss                           op s,d              reg/reg arithmetic (see below)
-00100001 ddddssss                           movq s,d            reg->reg copy
-00110001 ddddssss                           movq (s),d          load (memory -> reg copy)
-00111001 ddddssss                           movq d,(s)          store (reg -> memory copy)
--
-0100cccc ddddssss pp...32...pp              cb<c> s,d,p         compare and continue at p if... (see below)
-01001110 dddd0000 pp...32...pp              call p,d            function call
-01001111 00000000 pp...32...pp              jmp p               continue at p
-0101aaaa dddd0000 ii...32...ii              op $i,d             constant/reg arithmethic(see below)
-01100100 dddd0000 ii...32...ii              movq $i,d           constant -> register
-01110101 ddddssss ii...32...ii              movq i(s),d         load (memory -> reg copy)
-01111101 ddddssss ii...32...ii              movq d,i(s)         store (reg -> memory copy)
--
-10000001 ddddssss                           leaq (s),d          s -> d
-10010010 dddd0000 zzzzvvvv                  leaq (,z,v),d       z*v -> d
-10010011 ddddssss zzzzvvvv                  leaq (s,z,v),d      s+z*v -> d
-10100100 dddd0000 ii...32...ii              leaq i,d            i -> d
-10100101 ddddssss ii...32...ii              leaq i(s),d         i+s -> d
-10110110 dddd0000 zzzzvvvv ii...32...ii     leaq i(,z,v),d      i+z*v -> d
-10110111 ddddssss zzzzvvvv ii...32...ii     leaq i(s,z,v),d     i+s+z*v -> d
--
-1111cccc dddd0000 ii...32...ii pp...32...pp cb<c> $i,d,p        compare and continue at p if... (see below)
+2-addr + 32-bit constant format (6 bytes)
+010ooooo ddddxxxx ii..32..ii (arithmetic, mov imm, call, jmp)
+   0aaaa                     arithmetic
+   10000                     mov imm
+   10010                     call imm(ip),d (ip relative call)
+   10011                     jmp imm(ip) (ip relative jmp)
 
-Explanations:
+2-addr + 64-bit constant format (10 bytes)
+011ooooo ddddxxxx ii..64..ii (arithmetic, mov imm, call, jmp)
+   0aaaa                     arithmetic
+   10000                     movabsq (mov 64-bit imm)
+   10010                     call imm,d (absolute call)
+   10011                     jmp imm (absolute jmp)
 
-aaaa indicates the kind of arithmetic operation. All operate on full 64 bits:
+3-addr format (3 bytes)
+100ooooo ddddxxxx yyyycccc (arithmetic, load/store, leaq, cscc)
+   0aaaa              0000 arithmetic
+   10smm              rrrr load, s=sign extend, mm=op size
+   110mm              rrrr store, mm=op size
+   11100              rrrr leaq
+   11101              cccc cscc
 
-0000 add  addition
-0001 sub  subtraction
-0010 and  bitwise and
-0011 or   bitwise or
-0100 xor  bitwise xor
-0101 mul  unsigned multiplication
-0110 sar  shift arithmetic right (preserve topmost bit)
-0111 sal  shift arithmetic left (zero into lsb, do not preserve topmost bit)
-1000 shr  shift (logical) right (zero into topmost bit)
-1001 imul signed multiplication
 
-d,s and z are registers:
+3-addr + 16-bit constant format (5 bytes)
+110ooooo ddddxxxx yyyycccc ii..16..ii (leaq, load/store, cscc, cbcc)
+   10smm              rrrr load, s=sign extend, mm=op size
+   110mm              rrrr store, mm=op size
+   11100              rrrr leaq
+   11101              cccc cscc (compare against ii..16..ii, y is ignored)
+   11110              cccc cbcc (compare against y, ii..16..ii is target)
 
-0000 %rax     1000 %r8
-0001 %rbx     1001 %r9
-0010 %rcx     1010 %r10
-0011 %rdx     1011 %r11
-0100 %rbp     1100 %r12
-0101 %rsi     1101 %r13
-0110 %rdi     1110 %r14
-0111 %rsp     1111 %r15
+3-addr + 32-bit constant format (7 bytes)
+110ooooo ddddxxxx yyyycccc ii..32..ii (leaq, load/store, cscc, cbcc)
+   10smm              rrrr load, s=sign extend, mm=op size
+   110mm              rrrr store, mm=op size
+   11100              rrrr leaq
+   11101              cccc cscc (compare against ii..32..ii, y is ignored)
+   11110              cccc cbcc (compare against y, ii..32..ii is target)
 
-v is a scale factor encoded into the field vvvv in the form of a shift amount as follows:
+3-addr + 2x32-bit constant format (11 bytes)
+111ooooo ddddxxxx yyyycccc ii..32..ii pp..32..pp (cbcc)
+   11001              cccc cbcc (compare against ii..32..ii, y is ignored, p..32..p is target)
 
-vvvv v
-0000 1
-0001 2
-0010 4
-0011 8
 
-ii...32...ii is a 32 bit signed immediate
-pp...32...pp is a 32 bit target address
+rrrr: controls for all address computations (mov to/from memory, leaq)
+xyvv x = enable reg x, y = enable reg y, vv = scaling factor for reg y
+     disabling both x and y will source next ip instead (ip relative addressing)
 
-<c> is a condition mnemonic used in compare-and-branch. The compare-and-branch
-instruction cb<c> is not part of the original x86 instruction set, but the
-conditions in x86prime carry the same meaning as for x86.
+aaaa: arithmetic operation
 
-Example: cble %rdi,%rbp,target     = if %rdi <= %rbp (signed) then jump to target
+cccc: condition
 
-Encoding          Semantic
-0000 e            Equal
-0001 ne           Not equal
-0010 <reserved>
-0011 <reserved>
-0100 l            less (signed)
-0101 le           less or equal (signed)
-0110 g            greater (signed)
-0111 ge           greater or equal (signed)
-1000 a            above (unsigned)
-1001 ae           above or equal (unsigned)
-1010 b            below (unsigned)
-1011 be           below or equal (unsigned)
-11xx <reserved>
+dddd/xxxx/yyyy: register
 
-Note that signed and unsigned comparisons are different.
-
-call places the return address in a register instead of pushing it onto the stack.
-ret returns to the address in a register instead of popping it from the stack.
+all immediates are sign extended to 64 bits before use.

@@ -1,71 +1,133 @@
-2-addr format (2 bytes)
-000ooooo ddddxxxx (arithmetic, ret, stop, movq, indir-call, indir-jmp)
-   00000          stop
-   00001          call x,d (indirect call)
-   00010          jmp x (indirect jmp)
-   00011          ret x
-   00100          movq
-   1aaaa          arithmetic
+Instruction encoding
+--------------------
+00    dx                          stop
+01    dx                          call x,d (indirect call)
+02    dx                          jmp x (indirect jmp)
+03    dx                          ret x
+04    dx                          movq x,d
+1a    dx                          arithmetic
+20    dx     iiii                 mov i,d
+21    dx     iiii                 call i(ip),d
+22    dx     iiii                 jmp i(ip)
+3a    dx     iiii                 arithmetic
+40    dx     iiiiiiii             mov i,d
+41    dx     iiiiiiii             call i(ip),d
+42    dx     iiiiiiii             jmp imm(ip)
+5a    dx     iiiiiiii             arithmetic
+60    dx     iiiiiiiiiiiiiiii     movabsq i,d
+61    dx     iiiiiiiiiiiiiiii     call i,d
+62    dx     iiiiiiiiiiiiiiii     jmp i
+7a    dx     iiiiiiiiiiiiiiii     arithmetic
+80-87 dx yr                       mov from memory (ea) to reg d
+88-8B dx yr                       mov to memory (ea) from reg d
+8C    dx yr                       leaq (ea),d
+8D    dx yc                       cscc x,y,d
+9a    dx y0                       arithmetic
+A0-A7 dx yr  iiii                 mov from memory (ea) to reg d
+A8-AB dx yr  iiii                 mov to memory (ea) from reg d
+AC    dx yr  iiii                 leaq (ea),d
+AD    dx yc  iiii                 cscc x,i,d
+AE    dx yc  iiii                 cbcc x,y,i(ip)
+C0-C7 dx yr  iiiiiiii             mov from memory (ea) to reg d
+C8-CB dx yr  iiiiiiii             mov to memory (ea) from reg d
+CC    dx yr  iiiiiiii             leaq (ea),d
+CD    dx yc  iiiiiiii             cscc x,i,d
+CE    dx yc  iiiiiiii             cbcc x,y,i(ip)
+D0-D7 dx yr  iiiiiiiiiiiiiiii     mov from memory (ea) to reg d
+D8-DB dx yr  iiiiiiiiiiiiiiii     mov to memory (ea) from reg d
+DC    dx yr  iiiiiiiiiiiiiiii     leaq (ea),d
+DD    dx yc  iiiiiiiiiiiiiiii     cscc x,i,d
+EE    dx yc  iiiiiiiiiiiiiiii     cscc x,y,i
+EF    dx yc  iiiiiiii pppppppp    cbcc x,i,p(ip)
+||    || ||  |
+||    || ||  inline constant(s)
+||    || |condition codes or address calculation controls (tertiary controls)
+||    || source register y
+||    |source register x
+||    destination register d
+|minor opcode (secondary controls)
+major opcode (instruction layout and size, primary controls)
 
-2-addr + 16-bit constant format (4 bytes)
-001ooooo ddddxxxx ii..16..ii (arithmetic, mov imm, call, jmp)
-   0aaaa                     arithmetic
-   10000                     mov imm
-   10010                     call imm(ip),d (direct relative call)
-   10011                     jmp imm(ip) (direct relative jump)
-
-2-addr + 32-bit constant format (6 bytes)
-010ooooo ddddxxxx ii..32..ii (arithmetic, mov imm, call, jmp)
-   0aaaa                     arithmetic
-   10000                     mov imm
-   10010                     call imm(ip),d (ip relative call)
-   10011                     jmp imm(ip) (ip relative jmp)
-
-2-addr + 64-bit constant format (10 bytes)
-011ooooo ddddxxxx ii..64..ii (arithmetic, mov imm, call, jmp)
-   0aaaa                     arithmetic
-   10000                     movabsq (mov 64-bit imm)
-   10010                     call imm,d (absolute call)
-   10011                     jmp imm (absolute jmp)
-
-3-addr format (3 bytes)
-100ooooo ddddxxxx yyyycccc (arithmetic, load/store, leaq, cscc)
-   0aaaa              0000 arithmetic
-   10smm              rrrr load, s=sign extend, mm=op size
-   110mm              rrrr store, mm=op size
-   11100              rrrr leaq
-   11101              cccc cscc
-
-
-3-addr + 16-bit constant format (5 bytes)
-110ooooo ddddxxxx yyyycccc ii..16..ii (leaq, load/store, cscc, cbcc)
-   10smm              rrrr load, s=sign extend, mm=op size
-   110mm              rrrr store, mm=op size
-   11100              rrrr leaq
-   11101              cccc cscc (compare against ii..16..ii, y is ignored)
-   11110              cccc cbcc (compare against y, ii..16..ii is target)
-
-3-addr + 32-bit constant format (7 bytes)
-110ooooo ddddxxxx yyyycccc ii..32..ii (leaq, load/store, cscc, cbcc)
-   10smm              rrrr load, s=sign extend, mm=op size
-   110mm              rrrr store, mm=op size
-   11100              rrrr leaq
-   11101              cccc cscc (compare against ii..32..ii, y is ignored)
-   11110              cccc cbcc (compare against y, ii..32..ii is target)
-
-3-addr + 2x32-bit constant format (11 bytes)
-111ooooo ddddxxxx yyyycccc ii..32..ii pp..32..pp (cbcc)
-   11001              cccc cbcc (compare against ii..32..ii, y is ignored, p..32..p is target)
+Note: total instruction length (and layout) can be determined from the first 3 bits.
 
 
-rrrr: controls for all address computations (mov to/from memory, leaq)
-xyvv x = enable reg x, y = enable reg y, vv = scaling factor for reg y
-     disabling both x and y will source next ip instead (ip relative addressing)
 
-aaaa: arithmetic operation
+Field encodings
+---------------
 
-cccc: condition
+Encoding for mov from memory (x0-x7)
+op size extend
+0  byte zero
+1  byte sign
+2  word zero
+3  word sign
+4  dw   zero
+5  dw   sign
+6  quad na
+7  -
 
-dddd/xxxx/yyyy: register
+Encoding for mov to memory (x8-xB)
+op size
+8  byte (movb)
+9  word (mov)
+A  doubleword (movd)
+B  quadword (movq)
+
+Address computation (r) (control for all address computations (mov to/from memory, leaq)):
+r:   notation represented as (ea) in instruction encoding table above:
+     No immediate   With Immediate
+0    (ip,y)         i(ip,y)
+1    (ip,y,2)       i(ip,y,2)
+2    (ip,y,4)       i(ip,y,4)
+3    (ip,y,8)       i(ip,y,8)
+4    (y)            i(y)
+5    (y,2)          i(y,2)
+6    (y,4)          i(y,4)
+7    (y,8)          i(y,8)
+8    (x)            i(x)
+9    (ip)           i(ip)
+A-B  reserved       reserved
+C    (x,y)          i(x,y)
+D    (x,y,2)        i(x,y,2)
+E    (x,y,4)        i(x,y,4)
+F    (x,y,8)        i(x,y,8)
+
+a: arithmetic operation
+0   add    addition
+1   sub    subtraction
+2   and    bitwise and
+3   or     bitwise or
+4   xor    bitwise xor
+5   mul    signed multiplication
+6   sar    signed shift right
+7   sal    signed shift left
+8   shr    unsigned shift right
+9   imul   unsigned multiplication
+A-F reserved
+
+c: condition
+0   e
+1   ne
+2-3 reserved
+4   l
+5   le
+6   g
+7   ge
+8   a
+9   ae
+A   b
+B   be
+C-F reserved
+
+d/x/y: registers
+0  %rax        8  %r8
+1  %rbx        9  %r9
+2  %rcx        A  %r10
+3  %rdx        B  %r11
+4  %rbp        C  %r12
+5  %rsi        D  %r13
+6  %rdi        E  %r14
+7  %rsp        F  %r15
+
 
 all immediates are sign extended to 64 bits before use.

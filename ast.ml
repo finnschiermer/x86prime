@@ -2,7 +2,7 @@
 
   type opcode = ADD | SUB | AND | OR | XOR | CMP | LEA | TEST | MOV | RET | JMP | SAR | SAL | SHR 
                 | Jcc of condition | CBcc of condition | CMOVcc of condition
-                | CALL | PUSH | POP | MUL | IMUL | SYSCALL | MOVABSQ
+                | CALL | PUSH | POP | MUL | IMUL | STOP | MOVABSQ
 
 (*
   Eaxxx explanation: names are given according to how the Ea is computed

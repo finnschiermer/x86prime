@@ -92,7 +92,7 @@ rule read = parse
 | "cmpl"     { ALU2(CMP)   }
 | "movl"    { MOVE(MOV) }
 | "movq"    { MOVE(MOV) }
-| "syscall"      { CTL0(SYSCALL) }
+| "stop"    { CTL0(STOP) }
 | "rep ret" { CTL0(RET) }
 | "ret"     { if !translating then CTL0(RET) else CTL1(RET) }
 | "retq"     { if !translating then CTL0(RET) else CTL1(RET) }

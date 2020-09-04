@@ -126,8 +126,8 @@ let assemble_line env line : assem =
       let gen l : assem = Assembly ("?", (String.concat "" l), insn) in
       let gen_zeros num : assem = Assembly("?", (String.make (2 * num) '0'), insn) in
       match insn with
-      | Ctl0(SYSCALL) ->                           gen ["0"; "1"; "0"; "0"]
-      | Ctl1(RET,Reg(rs)) ->                       gen ["0"; "0"; "0"; asm_reg rs]
+      | Ctl0(STOP) ->                              gen ["0"; "0"; "0"; "0"]
+      | Ctl1(RET,Reg(rs)) ->                       gen ["0"; "1"; "0"; asm_reg rs]
 
         (* alu/move reg/reg operations, 2 byte encoding: *)
       | Alu2(ADD,Reg(rs),Reg(rd)) ->               gen ["1"; "0"; asm_reg rd; asm_reg rs]

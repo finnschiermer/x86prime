@@ -428,8 +428,8 @@ let disas_inst state =
   let second_byte = fetch_from_offs state 1 in
   let (rd,rs) = split_byte second_byte in
   match hi,lo with
-  | 0,0 -> Ast.Ctl1(RET,Reg(disas_reg rs))
-  | 0,1 -> Ast.Ctl0(SYSCALL)
+  | 0,1 -> Ast.Ctl1(RET,Reg(disas_reg rs))
+  | 0,0 -> Ast.Ctl0(STOP)
   | 1,0 -> Ast.Alu2(ADD,Reg(disas_reg rs), Reg(disas_reg rd))
   | 1,1 -> Ast.Alu2(SUB,Reg(disas_reg rs), Reg(disas_reg rd))
   | 1,2 -> Ast.Alu2(AND,Reg(disas_reg rs), Reg(disas_reg rd))
@@ -693,31 +693,21 @@ let run_inst perf state =
   let second_byte = fetch state in
   let (rd,rs) = split_byte second_byte in
   match hi,lo with
-  | 0,0 -> begin
+  | 0,0 -> begin (* stop simulation *)
+      terminate_output state;
+      model_nop perf state;   (* stop works as a NOP *)
+      log_ip state; (* final IP value should be added to trace *)
+      state.running <- false;
+      if state.show then
+      state.message <- Some (Printf.sprintf "\nTerminated by STOP instruction\n")
+    end
+  | 0,1 -> begin
       terminate_output state;
       let ret_addr = state.regs.(rs) in (* return instruction *)
       model_return perf state rs;
       state.ip <- ret_addr;
       if state.show then add_result state.plot "";
-      if ret_addr <= Int64.zero then begin
-          log_ip state; (* final IP value should be added to trace *)
-          state.running <- false;
-          if state.show then
-            state.message <- Some (Printf.sprintf "\nTerminating. Return to address %Lx\n" ret_addr)
-        end
     end
-  | 0,1 -> begin
-             if state.regs.(0) = Int64.zero then begin
-               model_alu_imm perf state 0;
-               wr_reg state 0 (perform_input 0)
-             end else if state.regs.(0) = Int64.one then begin
-               model_alu_imm perf state 0;
-               wr_reg state 0 (perform_input 1)
-             end else if state.regs.(0) = Int64.of_int 2 then begin
-               model_nop perf state; terminate_output state; perform_output 0 state.regs.(1)
-             end else
-               raise (UnknownInstructionAt (Int64.to_int state.ip))
-           end
   | 1,0 -> model_alu_reg perf state rd rs; wr_reg state rd (Int64.add state.regs.(rd) state.regs.(rs))
   | 1,1 -> model_alu_reg perf state rd rs; wr_reg state rd (Int64.sub state.regs.(rd) state.regs.(rs))
   | 1,2 -> model_alu_reg perf state rd rs; wr_reg state rd (Int64.logand state.regs.(rd) state.regs.(rs))

@@ -428,8 +428,8 @@ let disas_inst state =
   let second_byte = fetch_from_offs state 1 in
   let (rd,rs) = split_byte second_byte in
   match hi,lo with
-  | 0,1 -> Ast.Ctl1(RET,Reg(disas_reg rs))
   | 0,0 -> Ast.Ctl0(STOP)
+  | 0,1 -> Ast.Ctl1(RET,Reg(disas_reg rs))
   | 1,0 -> Ast.Alu2(ADD,Reg(disas_reg rs), Reg(disas_reg rd))
   | 1,1 -> Ast.Alu2(SUB,Reg(disas_reg rs), Reg(disas_reg rd))
   | 1,2 -> Ast.Alu2(AND,Reg(disas_reg rs), Reg(disas_reg rd))
@@ -707,6 +707,12 @@ let run_inst perf state =
       model_return perf state rs;
       state.ip <- ret_addr;
       if state.show then add_result state.plot "";
+      if ret_addr <= Int64.zero then begin
+          log_ip state; (* final IP value should be added to trace *)
+          state.running <- false;
+          if state.show then
+            state.message <- Some (Printf.sprintf "\nTerminated by RETURN to address %Lx\n" ret_addr)
+        end
     end
   | 1,0 -> model_alu_reg perf state rd rs; wr_reg state rd (Int64.add state.regs.(rd) state.regs.(rs))
   | 1,1 -> model_alu_reg perf state rd rs; wr_reg state rd (Int64.sub state.regs.(rd) state.regs.(rs))

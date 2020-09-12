@@ -25,8 +25,8 @@ Begrænsninger på instruktioner:
 
 |             | Instruktion    | Faser     | Dataafhængigheder                          |
 | ----------- | -------------- | --------- | ------------------------------------------ |
-| Aritmetik   | `op  a b`      | `FDXW`    | `depend(X,a), depend(X,b), produce(M,b)`   |
-| Læsning     | `movq (a),b`   | `FDXMMW`  | `depend(X,a), produce(W,b)`                |
+| Aritmetik   | `op  a b`      | `FDXW`    | `depend(X,a), depend(X,b), produce(X,b)`   |
+| Læsning     | `movq (a),b`   | `FDXMMW`  | `depend(X,a), produce(M,b)`                |
 | Skrivning   | `movq b,(a)`   | `FDXMM`   | `depend(X,a), depend(M,b)`                 |
 
 Overvej afviklingen af følgende program:

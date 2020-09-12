@@ -92,3 +92,4 @@ Note that signed and unsigned comparisons are different.
 
 call places the return address in a register instead of pushing it onto the stack.
 ret returns to the address in a register instead of popping it from the stack.
+returning to address 0 or to a negative address (bit 64 set) stops the machine.

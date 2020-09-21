@@ -221,8 +221,44 @@ addq $8,r10           FDXXMW     -- Forsinket F
 Vi kan altså nøjes med at benytte 11 clock perioder og får dermed en `CPI = 11/5 = 2,2`.
 
 ## Kontrolafhængigheder
-Den opmærksomme læser har nok lagt mærke til at alle tidligere programmer og mikroarkitekturer har manglet noget. Vi har endnu kun snakket om sekventielle instruktioner og ikke overvejet kontrolinstruktioner. Det skyldes at det gør vores plots og model signifikant mere kompliceret og senere udvidelser vil faktisk gøre det nemmere.
 
-Det er derfor noget som I stadig må glæde jer til.
+Vi modellerer effekten af hop, kald og retur ved at forsinke `F`.
+For betingede hop skelner vi mellem om hoppet tages eller ej.
+
+Vi udtrykker effekten ved tildelinger til en ny tidsvariabel: NextF.time
+Og for enhver instruktion gælder altid at F.time >= NextF.time
+
+~~~
+call a,b:   FDXMW
+ret  a:     FDXMW
+cbcc a,b,x: FDXMW
+~~~
+
+Her er nogle mulige regler for kontrol-instruktioner i en simpel pipeline som beskrevet ovenfor
+~~~
+Instruktion  Taget  Effekt
+Call         ja     produce(F+2,pc)
+Ret          ja     produce(F+3,pc)
+CBcc         nej    produce(F+1,pc)
+             ja     produce(F+3,pc)
+~~~
+Husk at `pc` er vores specielle register til at pege på næste instruktion, så ovenstående peger på hvor hurtigt næste instruktion kan være klar.
+
+
+Herunder ses to gennemløb af en indre løkke, hvor hop tages til sidst
+~~~
+                       012345678901234567
+loop: movq (r10),r11   FDXMW                  -- produce(M+2,r11)
+      addq $100,r11     FDDXMW                -- depend(X,r11), produce(X,r11)
+      movq r11,(r10)     FFDXMW               -- depend(X,r10), depend(M,r11), produce(M,r11)
+      addq $8,r10          FDXMW              -- produce(X,r10)
+      cbl  r10,r12,loop     FDXMW                -- produce(F+3, pc) (hop taget)
+loop: movq (r10),r11           FDXMW             -- produce(M+2,r11)
+      addq $100,r11             FDDXMW           -- depend(X,r11), produce(X,r11)
+      movq r11,(r10)             FFDXMW          -- depend(A,r10), depend(M,r11), produce(M,r11)
+      addq $8,r10                  FDXMW         -- produce(X,r10)
+      cbl  r10,r12,loop             FDXMW
+~~~
+
 
 &nbsp;

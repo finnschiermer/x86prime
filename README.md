@@ -14,8 +14,9 @@ On debian based linux this is
 > opam init -a
 ~~~
 On some systems, the default ocaml version is too old. Use "ocaml --version"
-to find which version you have. If you have something before 4.05.0, you need
-to upgrade. Latest version is 4.07.0. To upgrade do:
+to find which version you have. If you have something before 4.07.0, you need
+to upgrade to at least version 4.07.0. If you have 4.07.0 or later, you
+should not need to upgrade the ocaml toolchain. To upgrade do:
 ~~~
 > opam switch 4.07.0
 [at this point you may be asked to run "eval 'opam config env'" - do it]

@@ -1,4 +1,4 @@
-site_name: x86prime
+site_name: CompSys@DIKU
 nav:
     - Home: index.md
     - x86prime: x86prime.md
@@ -15,7 +15,6 @@ extra_css:
     - css/extra.css
 plugins:
     - search
-    # - pdf-export
     - pdf-export:
         verbose: true
         media_type: print

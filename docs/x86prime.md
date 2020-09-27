@@ -16,7 +16,7 @@ However, the following text is _not_ as stand-alone text. It will not describe t
 * [Execution plot](afviklingsplot.md) that explains how x86prime instructions are progressing though different stages pipelined architectures.
  -->
 ## Register names
-The resister names are the expected from x86_64 and the special purpose use are kept, with one noticeable change. we advise not to use `%r14` as it is used for procedure calls (see later).
+The resister names are the expected from x86_64 and the special purpose use are kept, with one noticeable change. we advise not to use `%r11` as it is used for procedure calls (see later).
 
 `%rax`,
 `%rbc`,
@@ -164,3 +164,10 @@ Note that x86prime does not have instructions for pushing and popping the stack,
 
 Also, if `%r11` is not used inside the procedure body, these four instructions can be removed; however this is not done by the current translation.
 
+## Halting the machine
+There is a special purpose instruction that halts execution of a x86prime program. This is
+
+```
+stop
+```
+It is not expected to do more than this.

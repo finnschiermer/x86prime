@@ -29,7 +29,8 @@ let nl = ['\n']
 let digit = ['0'-'9']
 let alpha = ['a'-'z' 'A'-'Z' '_' '.']
 let id    = alpha (alpha|digit)*
-let num   = '-'? digit+
+let hex   = "0x" ['0'-'9' 'a'-'f' 'A'-'F']+
+let num   = '-'? digit+ | hex
 let start_proc = ".cfi_startproc"
 let directive = ".text" | ".globl" | ".size" | ".section" | ".file" | ".ident"
     |  ".p2align" |  ".data" 

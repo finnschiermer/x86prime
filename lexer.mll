@@ -31,6 +31,7 @@ let alpha = ['a'-'z' 'A'-'Z' '_' '.']
 let id    = alpha (alpha|digit)*
 let hex   = "0x" ['0'-'9' 'a'-'f' 'A'-'F']+
 let num   = '-'? digit+ | hex
+let comment = ";"
 let start_proc = ".cfi_startproc"
 let directive = ".text" | ".globl" | ".size" | ".section" | ".file" | ".ident"
     |  ".p2align" |  ".data" 
@@ -56,6 +57,7 @@ rule read = parse
 | "@function" { FUNCTION }
 | ".cfi_endproc" { ENDFUNCTION }
 | "@object" { OBJECT }
+| comment [^'\n']*  { DIR(get lexbuf) }
 | directive [^'\n']*  { DIR(get lexbuf) }
 | ignored [^'\n']* { IGN(get lexbuf) }
 | '#' [^'\n']* { read lexbuf }

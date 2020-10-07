@@ -177,7 +177,7 @@ Lad os nu definere det korrekte afviklingspot for eksemplet. Først, lad os dog 
                  012345678901    -- Beskrivelse
 movq (r10),r11   FDXMMW          -- produce(M,r11)
 addq $100,r11     FDDDXMW        -- depend(X,r11), produce(X,r11), stall i D
-movq r11,(r10)     FFFDXMMW      -- Stall i F, depend(X,r11)
+movq r11,(r10)     FFFDXMMW      -- Stall i F, depend(M,r11)
 addq $8,r10           FDXXMW     -- Forsinket F
 subq $1,r12            FDDXMW    --
 ~~~

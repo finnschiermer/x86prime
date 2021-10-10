@@ -1,3 +1,4 @@
+(* Split file into list of text blocks according to line separators *)
 let to_lines fname =
   let ch = open_in fname in
   let parsing = ref true in
@@ -11,18 +12,21 @@ let to_lines fname =
   List.rev !lines
 ;;
 
-let line_mapper line =
+let line_mapper line_num line =
   try
+    line_num := 1 + !line_num;
     let lexbuf = Lexing.from_string line in
     let p : Ast.line = Parser.aline Lexer.read lexbuf in
-    Ok(p)
+    Ok(!line_num, p)
   with
   | Lexer.Error msg -> Error(msg, line)
   | _ -> Error("unknown insn", line)
 ;;
 
+(* Parse list of text blocks into list of ASTs (or error) *)
 let parse_lines lines  =
-  List.map line_mapper lines
+  let line_num = ref 0 in
+  List.map (line_mapper line_num) lines
 ;;
 
 let print_lines oc lines =
@@ -33,6 +37,7 @@ let do_asm = ref false
 let do_list = ref true
 let program_name = ref ""
 
+(* Parse entire file into list of ASTs *)
 let read fname =
   parse_lines (to_lines fname)
 

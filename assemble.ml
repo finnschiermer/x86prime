@@ -122,7 +122,7 @@ let asm_imm64 env i =
 let assemble_line env line : assem =
   let open Ast in
   match line with
-  | Ok(insn) -> begin
+  | Ok(_, insn) -> begin
       let gen l : assem = Assembly ("?", (String.concat "" l), insn) in
       let gen_zeros num : assem = Assembly("?", (String.make (2 * num) '0'), insn) in
       match insn with
@@ -192,8 +192,8 @@ let assemble_line env line : assem =
 let should_translate line =
   let open Ast in
   match line with
-  | Ok(Alu2(_)) | Ok(Move2(_)) | Ok(Ctl1(_)) | Ok(Ctl2(_)) | Ok(Ctl0(_)) | Ok(Ctl3(_)) 
-  | Ok(Label(_)) | Ok(Quad(_)) | Ok(Comm(_)) | Ok(Align(_)) | Error(_) -> true
+  | Ok(_, Alu2(_)) | Ok(_, Move2(_)) | Ok(_, Ctl1(_)) | Ok(_, Ctl2(_)) | Ok(_, Ctl0(_)) | Ok(_, Ctl3(_)) 
+  | Ok(_, Label(_)) | Ok(_, Quad(_)) | Ok(_, Comm(_)) | Ok(_, Align(_)) | Error(_) -> true
   | _ -> false
 
 let print_assembly_line oc line =
@@ -237,7 +237,7 @@ let rec print_env env =
   | (a,b) :: tail -> Printf.printf "%s -> %s\n" a b; print_env tail
   | [] -> ()
 
-let prepare lines = List.filter should_translate lines
+let prepare (lines : (int * Ast.line, string * string) result list) = List.filter should_translate lines
 
 let first_pass lines =
   let first_pass = List.map (assemble_line []) lines in
@@ -257,7 +257,7 @@ let get_line_as_hex line =
 let get_as_hex lines : (string * string) list =
   List.map get_line_as_hex lines
 
-let assemble lines =
+let assemble (lines : (int * Ast.line, string * string) result list) =
   let lines = prepare lines in
   let env = first_pass lines in
   let prog = second_pass env lines in

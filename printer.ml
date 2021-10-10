@@ -79,6 +79,6 @@ let print_insn insn =
 let line_printer oc line =
   let open Ast in
   match line with
-  | Ok(insn) -> Printf.fprintf oc "%s\n" (print_insn insn)
+  | Ok(_, insn) -> Printf.fprintf oc "%s\n" (print_insn insn)
   | Error(a,b) -> Printf.fprintf oc "ERROR: %s : %s\n" a b
 

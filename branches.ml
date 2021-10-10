@@ -2,15 +2,15 @@ exception Branch_conversion_failure_at of string
 
 type generator_info = Unknown | Chosen of Ast.line | Conflict of string
 
-let rewrite_bcc condition (flag_setter : generator_info) =
+let rewrite_bcc lnum condition (flag_setter : generator_info) =
   let open Ast in
   match condition, flag_setter with
-  | Ctl1(Jcc(cond),lab), Chosen(Alu2(TEST,a,b)) -> Ok(Ctl3(CBcc(Ast.rev_cond cond),Imm("0"),b,lab))
-  | Ctl1(Jcc(cond),lab), Chosen(Alu2(CMP,a,b)) -> Ok(Ctl3(CBcc(Ast.rev_cond cond),a,b,lab))
-  | Ctl1(Jcc(cond),lab), Chosen(Alu2(op,a,b)) -> Ok(Ctl3(CBcc(Ast.rev_cond cond),Imm("0"),b,lab))
+  | Ctl1(Jcc(cond),lab), Chosen(Alu2(TEST,a,b)) -> Ok(lnum, Ctl3(CBcc(Ast.rev_cond cond),Imm("0"),b,lab))
+  | Ctl1(Jcc(cond),lab), Chosen(Alu2(CMP,a,b)) -> Ok(lnum, Ctl3(CBcc(Ast.rev_cond cond),a,b,lab))
+  | Ctl1(Jcc(cond),lab), Chosen(Alu2(op,a,b)) -> Ok(lnum, Ctl3(CBcc(Ast.rev_cond cond),Imm("0"),b,lab))
   | Ctl1(Jcc(cond),lab), Unknown -> Error ("cannot convert", Printer.print_insn condition)
   | insn,Conflict(lab) -> Error ("cannot join with", Printer.print_insn insn)
-  | insn,_ -> Ok(insn)
+  | insn,_ -> Ok(lnum, insn)
 
 (* add a flag_setter to env at label - or check against one already registered *)
 let unify_inbound_flow env (label : string) (flag_setter : generator_info) =
@@ -45,21 +45,21 @@ let operand_conflicts target_op_spec other_insn =
 let rec fill_env_loop env lines (flag_setter : generator_info) =
   let open Ast in
   match lines with
-  | Ok(Label(lab)) :: others -> begin
+  | Ok(_, Label(lab)) :: others -> begin
       let resolution = unify_inbound_flow env lab flag_setter in
       fill_env_loop ((lab,resolution) :: env) others resolution
     end
-  | Ok(Ctl1(Jcc(_),EaD(lab))) :: others -> begin
+  | Ok(_, Ctl1(Jcc(_),EaD(lab))) :: others -> begin
       let resolution = unify_inbound_flow env lab flag_setter in
       fill_env_loop ((lab,resolution) :: env) others flag_setter
     end
-    | Ok(Ctl1(JMP,EaD(lab))) :: others -> begin
+    | Ok(_, Ctl1(JMP,EaD(lab))) :: others -> begin
       let resolution = unify_inbound_flow env lab flag_setter in
       fill_env_loop ((lab,resolution) :: env) others Unknown
     end
-  | Ok(Alu2(LEA,_,_)) :: others -> fill_env_loop env others flag_setter
-  | Ok(Alu2(_) as insn) :: others -> fill_env_loop env others (Chosen(insn))
-  | Ok(Ctl1((_),_)) :: others | Ok(Ctl0(_)) :: others -> fill_env_loop env others (Unknown : generator_info)
+  | Ok(_, Alu2(LEA,_,_)) :: others -> fill_env_loop env others flag_setter
+  | Ok(_, (Alu2(_) as insn)) :: others -> fill_env_loop env others (Chosen(insn))
+  | Ok(_, Ctl1((_),_)) :: others | Ok(_, Ctl0(_)) :: others -> fill_env_loop env others (Unknown : generator_info)
   | insn :: others -> fill_env_loop env others flag_setter
   | [] -> env
 
@@ -73,7 +73,7 @@ let next_lab_name _ =
 let rec elim_loop env lines flag_setter =
   let open Ast in
   match lines with 
-  | Ok(insn) as line :: other_lines -> begin
+  | Ok(lnum, insn) as line :: other_lines -> begin
       match insn with
       | Alu2(TEST,_,_) | Alu2(CMP,_,_) -> elim_loop env other_lines (Chosen insn)
       | Alu2(LEA,_,target) -> begin
@@ -85,7 +85,7 @@ let rec elim_loop env lines flag_setter =
       | Alu2(CMOVcc(cc),s,d) -> begin
           let labname = next_lab_name () in
           let lab = Label(labname) in
-          let lines = Ok(Ctl1(Jcc(Ast.rev_cond cc),EaD(labname))) :: Ok(Move2(MOV,s,d)) :: Ok(lab) :: other_lines in
+          let lines = Ok(lnum, Ctl1(Jcc(Ast.rev_cond cc),EaD(labname))) :: Ok(lnum, Move2(MOV,s,d)) :: Ok(lnum, lab) :: other_lines in
           (elim_loop env lines flag_setter)
         end
       | Alu2(_)                        -> line :: (elim_loop env other_lines (Chosen insn))
@@ -97,7 +97,7 @@ let rec elim_loop env lines flag_setter =
             [Error ("Cannot handle jmp to function (tail-call?)", (Printer.print_insn insn))]
         end
       | Ctl1(Jcc(_),EaD(target)) -> begin
-          (rewrite_bcc insn flag_setter) :: (elim_loop env other_lines flag_setter)
+          (rewrite_bcc lnum insn flag_setter) :: (elim_loop env other_lines flag_setter)
         end
       | Label(lab) -> begin
           match (List.assoc_opt lab env) with
@@ -117,7 +117,7 @@ let print_env oc env =
     | nm,Conflict(lab) -> (Printf.fprintf oc "%s : Conflict at %s\n" nm lab)
   in List.iter printer env
 
-let elim_flags lines  =
+let elim_flags (lines : (int * Ast.line, string * string) result list)  =
   let env = fill_env_loop [] lines Unknown in
   elim_loop env lines Unknown
 

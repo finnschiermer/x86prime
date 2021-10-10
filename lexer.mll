@@ -29,7 +29,9 @@ let nl = ['\n']
 let digit = ['0'-'9']
 let alpha = ['a'-'z' 'A'-'Z' '_' '.']
 let id    = alpha (alpha|digit)*
-let num   = '-'? digit+
+let hex   = "0x" ['0'-'9' 'a'-'f' 'A'-'F']+
+let num   = '-'? digit+ | hex
+let comment = ";"
 let start_proc = ".cfi_startproc"
 let directive = ".text" | ".globl" | ".size" | ".section" | ".file" | ".ident"
     |  ".p2align" |  ".data" 
@@ -55,6 +57,7 @@ rule read = parse
 | "@function" { FUNCTION }
 | ".cfi_endproc" { ENDFUNCTION }
 | "@object" { OBJECT }
+| comment [^'\n']*  { DIR(get lexbuf) }
 | directive [^'\n']*  { DIR(get lexbuf) }
 | ignored [^'\n']* { IGN(get lexbuf) }
 | '#' [^'\n']* { read lexbuf }
@@ -92,7 +95,7 @@ rule read = parse
 | "cmpl"     { ALU2(CMP)   }
 | "movl"    { MOVE(MOV) }
 | "movq"    { MOVE(MOV) }
-| "syscall"      { CTL0(SYSCALL) }
+| "stop"    { CTL0(STOP) }
 | "rep ret" { CTL0(RET) }
 | "ret"     { if !translating then CTL0(RET) else CTL1(RET) }
 | "retq"     { if !translating then CTL0(RET) else CTL1(RET) }

@@ -3,7 +3,8 @@ x86prime instructions and encoding
 
 Encoding:                                   Assembler           Operation
 
-00000000 0000ssss                           ret s               return from function call
+00000000 00000000                           stop                stop the machine
+00000001 0000ssss                           ret s               return from function call
 0001aaaa ddddssss                           op s,d              reg/reg arithmetic (see below)
 00100001 ddddssss                           movq s,d            reg->reg copy
 00110001 ddddssss                           movq (s),d          load (memory -> reg copy)
@@ -26,6 +27,8 @@ Encoding:                                   Assembler           Operation
 10110111 ddddssss zzzzvvvv ii...32...ii     leaq i(s,z,v),d     i+s+z*v -> d
 -
 1111cccc dddd0000 ii...32...ii pp...32...pp cb<c> $i,d,p        compare and continue at p if... (see below)
+
+Note: first 4 bits are called the "major opcode", next 4 bits are called the "minor opcode".
 
 Explanations:
 
@@ -89,3 +92,4 @@ Note that signed and unsigned comparisons are different.
 
 call places the return address in a register instead of pushing it onto the stack.
 ret returns to the address in a register instead of popping it from the stack.
+returning to address 0 or to a negative address (bit 64 set) stops the machine.

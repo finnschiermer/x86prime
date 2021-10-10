@@ -1,4 +1,4 @@
-site_name: x86prime
+site_name: CompSys@DIKU
 nav:
     - Home: index.md
     - x86prime: x86prime.md
@@ -9,6 +9,13 @@ nav:
         - Avanceret pipeline, anonyme faser: afviklingsplot/anonyme.md
         - Out-of-order: afviklingsplot/out-of-order.md
         - Kontrol afhængigheder: afviklingsplot/kontrol.md
-theme: readthedocs
+# theme: readthedocs
+theme: material
 extra_css:
     - css/extra.css
+plugins:
+    - search
+    - pdf-export:
+        verbose: true
+        media_type: print
+        enabled_if_env: ENABLE_PDF_EXPORT

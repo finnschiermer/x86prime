@@ -1,4 +1,4 @@
-# Kontrol afhængigheder
+# Kontrol afhængigheder i en Out-of-order pipeline
 
 ## Modellering
 

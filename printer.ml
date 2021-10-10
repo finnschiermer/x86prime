@@ -37,7 +37,7 @@ let print_opc opc =
   | CALL -> "call"
   | MUL -> "mulq"
   | IMUL -> "imulq"
-  | SYSCALL -> "syscall"
+  | STOP -> "stop"
   | MOVABSQ -> "movabsq"
 ;;
 

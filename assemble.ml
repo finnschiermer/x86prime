@@ -198,8 +198,8 @@ let should_translate line =
 
 let print_assembly_line oc line =
   match line with
-  | Assembly(a,s,i) -> Printf.fprintf oc "%8s : %-20s  #  " a s; (Printer.line_printer oc (Ok i))
-  | Source(i) -> Printf.fprintf oc "NOT PRIME:                #  "; (Printer.line_printer oc (Ok i))
+  | Assembly(a,s,i) -> Printf.fprintf oc "%8s : %-20s  #  " a s; (Printer.line_printer oc (Ok (0,i)))
+  | Source(i) -> Printf.fprintf oc "NOT PRIME:                #  "; (Printer.line_printer oc (Ok (0,i)))
 
 let print_assembly oc lines =
   List.iter (print_assembly_line oc) lines

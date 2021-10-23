@@ -31,6 +31,29 @@ let parse_lines lines  =
 
 let print_lines oc lines =
   List.iter (Printer.line_printer oc) lines
+
+let print_unpaired_asm = Printer.print_unpaired_asm
+
+let print_unpaired_src = Printer.print_unpaired_src
+
+let print_paired = Printer.print_paired
+
+let rec print_lines_ordered oc assembled source =
+  match assembled, source with
+  | [], [] -> ()
+  | [], src :: src_rest -> begin print_unpaired_src oc src; print_lines_ordered oc [] src_rest end
+  | ass :: ass_rest, [] -> begin print_unpaired_asm oc ass; print_lines_ordered oc ass_rest [] end
+  | ass :: ass_rest, src :: src_rest -> 
+      begin
+        match ass,src with
+        | Ok(ass_ln, _ ), Ok(src_ln, _) ->
+          begin
+            if ass_ln < src_ln then begin print_unpaired_asm oc ass; print_lines_ordered oc ass_rest source end;
+            if ass_ln > src_ln then begin print_unpaired_src oc src; print_lines_ordered oc assembled src_rest end;
+            if ass_ln = src_ln then begin print_paired oc ass src; print_lines_ordered oc ass_rest src_rest end
+          end
+        | _ -> ()
+      end
 ;;
 let do_txl = ref true
 let do_asm = ref false
@@ -55,7 +78,8 @@ let () =
     raise (InvalidArgument "Filename not given or does not end with '.s'");
     Lexer.translating := true;
     let source = read !program_name in
-    let source = Translate.translate source in
-    let source = Assemble.prepare source in
+    let translated = Translate.translate source in
+    let assembled = Assemble.prepare translated in
     let oc = open_out ((Filename.chop_suffix !program_name ".s") ^ ".prime") in 
-    print_lines oc source
+    print_lines_ordered oc assembled source
+

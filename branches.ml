@@ -113,7 +113,7 @@ let print_env oc env =
   let printer x =
     match x with
     | nm,Unknown -> Printf.fprintf oc "%s : Unknown\n" nm
-    | nm,Chosen(insn) -> (Printf.fprintf oc "%s : " nm); (Printer.line_printer oc (Ok(insn)))
+    | nm,Chosen(insn) -> (Printf.fprintf oc "%s : " nm); (Printer.line_printer oc (Ok(0, insn)))
     | nm,Conflict(lab) -> (Printf.fprintf oc "%s : Conflict at %s\n" nm lab)
   in List.iter printer env
 

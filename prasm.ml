@@ -11,18 +11,20 @@ let to_lines fname =
   List.rev !lines
 ;;
 
-let line_mapper line =
+let line_mapper lnum line =
   try
+    lnum := 1 + !lnum;
     let lexbuf = Lexing.from_string line in
     let p : Ast.line = Parser.aline Lexer.read lexbuf in
-    Ok(p)
+    Ok(!lnum, p)
   with
   | Lexer.Error msg -> Error(msg, line)
   | _ -> Error("unknown insn", line)
 ;;
 
 let parse_lines lines  =
-  List.map line_mapper lines
+  let lnum = ref 0 in
+  List.map (line_mapper lnum) lines
 ;;
 
 let print_lines oc lines =

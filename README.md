@@ -4,15 +4,16 @@ A few tools for our x86 subset, x86prime, known as just "prime"
 
 ## Prerequisites
 
-Install ocaml and opam. This installs the default compiler version for the system,
-which may not be recent enough. Upgrade this to version 4.07, Then use opam to
-install menhir and ocamlbuild.
+Install ocaml and opam (ocaml package manager). This installs the default compiler version for the system.
 
 On debian based linux this is
 ~~~
 > sudo apt install ocaml opam
 > opam init -a
 ~~~
+The "opam init" command may ask if you want to update your path. If so, say yes.
+Read any messages carefully, just pressing return to questions asked, may not give you what you want.
+
 On some systems, the default ocaml version is too old. Use "ocaml --version"
 to find which version you have. If you have something before 4.07.0, you need
 to upgrade to at least version 4.07.0. If you have 4.07.0 or later, you
@@ -21,13 +22,13 @@ should not need to upgrade the ocaml toolchain. To upgrade do:
 > opam switch 4.07.0
 [at this point you may be asked to run "eval 'opam config env'" - do it]
 ~~~
-You may have to use "opam switch create" instead of just "opam switch"
-
 On some systems, this is not enough, and we recommend that you exit your shell,
 then restart it before proceeding
 
-While OCaml 4.05 works, it produces a lot of warnings. If you'd rather have
-a clean build process, upgrade to 4.07.0 as described above.
+You may have to use "opam switch create" instead of just "opam switch". This depends
+on the version of opam.
+
+Next, install the tools "menhir" and "ocamlbuild":
 ~~~
 > opam install menhir ocamlbuild
 ~~~
@@ -61,7 +62,7 @@ You can write one yourself. Or generate one from a program written in "C"
 using a C-compiler.
 
 ~~~
-> gcc -S -Og -fno-optimize-sibling-calls my_program.c
+> gcc -S -Og -fno-optimize-sibling-calls -fcf-protection=none my_program.c
 ~~~
 
 ## Translating x86 into prime (x86prime)
@@ -134,6 +135,9 @@ The translation from x86 to prime is not perfect.
 
  * Tail-call optimization will result in code, which cannot be correctly translated
    into "prime", worse: this currently goes undetected - to disable it use "-fno-optimize-sibling-calls"
+
+ * Intel CFE (control-flow enforcement technology) produces code that primify cannot handle.
+   - to disable it use "-fcf-protection=none"
 
  * When gcc needs to use almost all registers in a function, translation will either fail
    or just be incorrect.

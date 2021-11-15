@@ -1,3 +1,6 @@
+open Prime
+;;
+
 let to_lines fname =
   let ch = open_in fname in
   let parsing = ref true in

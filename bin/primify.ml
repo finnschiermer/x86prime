@@ -1,3 +1,6 @@
+open Prime
+;;
+
 (* Split file into list of text blocks according to line separators *)
 let to_lines fname =
   let ch = open_in fname in

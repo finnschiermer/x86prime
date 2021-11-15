@@ -1,3 +1,6 @@
+open Prime
+;;
+
 let machine = ref (Machine.create ())
 let labels = ref None
 let program_name = ref ""

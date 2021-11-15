@@ -28,25 +28,31 @@ then restart it before proceeding
 You may have to use "opam switch create" instead of just "opam switch". This depends
 on the version of opam.
 
-Next, install the tools "menhir" and "ocamlbuild":
+Next, install the tools "menhir" and "dune":
 ~~~
-> opam install menhir ocamlbuild
+> opam install dune menhir
 ~~~
 
 ## Building
 
-The script "buildall.sh" will build 4 tools:
+We use 'dune' for building. Use the command "dune build" to build the four tools:
 
  * primify, a tool which translates real x86 assembler into prime assembler
  * prasm, the assembler, a tool which encodes prime assembler into a format known as "hex"
  * prun, a tool which reads hex files and runs them
  * prerf, like prun, but collect performance statistics
 
-The tools will be linked from the "bin" subdirectory.
+~~~
+> dune build
+~~~
 
+The tools will be placed in the "_build/default/bin" subdirectory with a ".exe" suffix.
+You may want to create links to them, so that you don't need to type the full file name.
+For example
 ~~~
-> ./buildall.sh
+> ln -s _build/default/bin/primify.exe primify
 ~~~
+and so on.
 
 If by accident you have built part of the program using an old version, you
 may get an error during build indicating a version problem with part of the

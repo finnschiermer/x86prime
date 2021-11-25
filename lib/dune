@@ -1,0 +1,14 @@
+(library
+ (name prime))
+
+(env
+ (dev
+  (flags
+   (:standard -w -27-32-34-38))))
+
+(ocamllex
+ (modules lexer))
+
+(menhir
+ (modules parser)
+ (flags -la 2))

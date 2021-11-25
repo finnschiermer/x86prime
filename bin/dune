@@ -1,0 +1,3 @@
+(executables
+ (names prasm primify prerf prun)
+ (libraries prime))

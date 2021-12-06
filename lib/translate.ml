@@ -49,7 +49,7 @@ let extract_from_op op =
 let extract_regs line =
   let open Ast in
   match line with
-  | Ok(_, insn) -> begin
+  | (_, insn) -> begin
      match insn with
      | Alu2(_,a,b) -> (extract_from_op a) lor (extract_from_op b)
      | PuPo(_,a) -> extract_from_op a
@@ -59,7 +59,6 @@ let extract_regs line =
      | Ctl1(_,a) -> extract_from_op a
      | _ -> 0
     end
-  | _ -> 0
 
 let caller_saves = 1 lor 4 lor 8 lor 32 lor 64 lor 256 lor 512 lor 1024 lor 2048
 let callee_saves = 2 lor 16 lor 4096 lor 8192 lor 16384 lor 32768
@@ -91,14 +90,17 @@ let allocate_reg reg_list =
 let rec txl_instructions lines =
   let open Ast in
   match lines with
-  | Ok(lnum, Alu2(MOVABSQ,Imm(a),b)) :: tl -> begin
+  | (lnum, Alu2(MOVABSQ,Imm(a),b)) :: tl -> begin
       let v : Int64.t = Int64.of_string a in
       let lo : Int64.t = Int64.of_int32 (Int64.to_int32 v) in
       let rest = Int64.sub v lo in
       let hi = Int64.shift_right rest 32 in
-      Ok(lnum, Alu2(MOV,Imm(Int64.to_string hi), b)) :: Ok(lnum, Alu2(SAL,Imm("32"),b))
-         :: Ok(lnum, Alu2(ADD,Imm(Int64.to_string lo), b)) :: txl_instructions tl
+      (lnum, Alu2(MOV,Imm(Int64.to_string hi), b)) :: (lnum, Alu2(SAL,Imm("32"),b))
+         :: (lnum, Alu2(ADD,Imm(Int64.to_string lo), b)) :: txl_instructions tl
     end
+  | (_, Ignored(_))::tl | (_, Directive(_))::tl | (_, Function(_))::tl 
+    | (_,Object(_))::tl | (_, Fun_start) :: tl | (_, Fun_end)::tl -> (txl_instructions tl)
+  | (lnum, Other(s)) :: tl -> (lnum, Other "    ERROR - no prime for this ---> ") :: (txl_instructions tl)
   | insn :: tl -> insn :: (txl_instructions tl)
   | [] -> []
 
@@ -112,8 +114,8 @@ exception NotEnoughFreeRegisters
 let rec free_up_register lines reg = 
   let open Ast in
   match lines with
-  | Ok(lnum, Fun_start) :: tl -> Ok(lnum, Fun_start) :: Ok(lnum, PuPo(PUSH,Reg(reg))) :: free_up_register tl reg
-  | Ok(lnum, Ctl0(RET)) :: tl -> Ok(lnum, PuPo(POP,Reg(reg))) :: Ok(lnum, Ctl0(RET)) :: free_up_register tl reg
+  | (lnum, Fun_start) :: tl -> (lnum, Fun_start) :: (lnum, PuPo(PUSH,Reg(reg))) :: free_up_register tl reg
+  | (lnum, Ctl0(RET)) :: tl -> (lnum, PuPo(POP,Reg(reg))) :: (lnum, Ctl0(RET)) :: free_up_register tl reg
   | hd :: tl -> hd :: free_up_register tl reg
   | [] -> []
 
@@ -137,17 +139,16 @@ let rebind_register lines from_reg to_reg =
   let rebind_register_in_insn insn =
     let open Ast in
     match insn with
-    | Ok(lnum, insn) -> begin
+    | (lnum, insn) -> begin
         match(insn) with
-        | Alu2(o,a,b) -> Ok(lnum, Alu2(o,rebind_reg_in_op a,rebind_reg_in_op b))
-        | PuPo(o,a) -> Ok(lnum, PuPo(o,rebind_reg_in_op a))
-        | Move2(o,a,b) -> Ok(lnum, Move2(o,rebind_reg_in_op a, rebind_reg_in_op b))
-        | Ctl3(o,a,b,c) -> Ok(lnum, Ctl3(o,rebind_reg_in_op a, rebind_reg_in_op b, rebind_reg_in_op c))
-        | Ctl2(o,a,b) -> Ok(lnum, Ctl2(o,rebind_reg_in_op a, rebind_reg_in_op b))
-        | Ctl1(o,a) -> Ok(lnum, Ctl1(o,rebind_reg_in_op a))
-        | x -> Ok(lnum, x)
+        | Alu2(o,a,b) -> (lnum, Alu2(o,rebind_reg_in_op a,rebind_reg_in_op b))
+        | PuPo(o,a) -> (lnum, PuPo(o,rebind_reg_in_op a))
+        | Move2(o,a,b) -> (lnum, Move2(o,rebind_reg_in_op a, rebind_reg_in_op b))
+        | Ctl3(o,a,b,c) -> (lnum, Ctl3(o,rebind_reg_in_op a, rebind_reg_in_op b, rebind_reg_in_op c))
+        | Ctl2(o,a,b) -> (lnum, Ctl2(o,rebind_reg_in_op a, rebind_reg_in_op b))
+        | Ctl1(o,a) -> (lnum, Ctl1(o,rebind_reg_in_op a))
+        | x -> (lnum, x)
       end
-    | x -> x
   in
   List.map rebind_register_in_insn lines
 
@@ -184,7 +185,7 @@ let rec rebind_needed_registers lines needs good_registers bad_registers =
         end
     end
 
-let translate_function (lines : (int * Ast.line, string * string) result list) =
+let translate_function lines =
 (*  begin
     match lines with
     | Ok(insn) :: rest -> Printf.printf "Translating to x86prime: %s\n" (Printer.print_insn insn)
@@ -213,11 +214,16 @@ let translate_function (lines : (int * Ast.line, string * string) result list) =
   try
     let code = free_up_needed_registers lines needs free_caller_saves_regs free_callee_saves_regs in
     rebind_needed_registers code needs free_caller_saves_regs free_callee_saves_regs
-  with NotEnoughFreeRegisters -> Error("Not enough registers", "Cannot translate this function") :: lines
+  with NotEnoughFreeRegisters -> begin
+    let lnum = match lines with
+    | [] -> 0
+    | (l,_)::_ -> l in
+    (lnum, Other("    ERROR: Not enough registers for this function")) :: lines
+  end
 
 let rec grab_first_function program =
   match program with
-  | Ok(ln, Ast.Fun_end) as insn :: rest -> ([insn],rest)
+  | (ln, Ast.Fun_end) as insn :: rest -> ([insn],rest)
   | hd :: tl -> begin
       let (rest_of_fun, rest_of_prog) = grab_first_function tl in
       (hd :: rest_of_fun, rest_of_prog)
@@ -226,7 +232,7 @@ let rec grab_first_function program =
 
 let rec split_program_not_in_function acc_functions acc_rest program =
   match program with
-  | Ok(_, Ast.Function(_)) :: rest -> begin
+  | (_, Ast.Function(_)) :: rest -> begin
         let func,rest = grab_first_function program in
         split_program_not_in_function (func :: acc_functions) acc_rest rest
       end
@@ -239,8 +245,17 @@ let split_program program =
 let join_program functions nonfunctions =
   List.append (List.flatten functions) nonfunctions
 
+let rec translate_nonfunctions (lines : (int * Ast.line) list) =
+  match lines with
+  | (_, Ast.Quad(_)) as insn :: tl 
+  | (_, Ast.Comm(_)) as insn :: tl 
+  | (_, Ast.Align(_)) as insn :: tl -> insn :: (translate_nonfunctions tl)
+  | other :: tl -> translate_nonfunctions tl
+  | [] -> []
+;;
 let translate program =
   let functions, nonfunctions = split_program program in
   let translated_functions = List.map translate_function functions in
-  let result = join_program translated_functions nonfunctions in
+  let translated_nonfunctions = translate_nonfunctions nonfunctions in
+  let result = join_program translated_functions translated_nonfunctions in
   result

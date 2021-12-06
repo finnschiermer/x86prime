@@ -19,10 +19,10 @@ let line_mapper lnum line =
     lnum := 1 + !lnum;
     let lexbuf = Lexing.from_string line in
     let p : Ast.line = Parser.aline Lexer.read lexbuf in
-    Ok(!lnum, p)
+    (!lnum, p)
   with
-  | Lexer.Error msg -> Error(msg, line)
-  | _ -> Error("unknown insn", line)
+  | Lexer.Error msg -> (!lnum, Other (msg ^ " : " ^ line))
+  | _ -> (!lnum, Other line)
 ;;
 
 let parse_lines lines  =

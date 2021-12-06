@@ -5,12 +5,12 @@ type generator_info = Unknown | Chosen of Ast.line | Conflict of string
 let rewrite_bcc lnum condition (flag_setter : generator_info) =
   let open Ast in
   match condition, flag_setter with
-  | Ctl1(Jcc(cond),lab), Chosen(Alu2(TEST,a,b)) -> Ok(lnum, Ctl3(CBcc(Ast.rev_cond cond),Imm("0"),b,lab))
-  | Ctl1(Jcc(cond),lab), Chosen(Alu2(CMP,a,b)) -> Ok(lnum, Ctl3(CBcc(Ast.rev_cond cond),a,b,lab))
-  | Ctl1(Jcc(cond),lab), Chosen(Alu2(op,a,b)) -> Ok(lnum, Ctl3(CBcc(Ast.rev_cond cond),Imm("0"),b,lab))
-  | Ctl1(Jcc(cond),lab), Unknown -> Error ("cannot convert", Printer.print_insn condition)
-  | insn,Conflict(lab) -> Error ("cannot join with", Printer.print_insn insn)
-  | insn,_ -> Ok(lnum, insn)
+  | Ctl1(Jcc(cond),lab), Chosen(Alu2(TEST,a,b)) -> (lnum, Ctl3(CBcc(Ast.rev_cond cond),Imm("0"),b,lab))
+  | Ctl1(Jcc(cond),lab), Chosen(Alu2(CMP,a,b)) -> (lnum, Ctl3(CBcc(Ast.rev_cond cond),a,b,lab))
+  | Ctl1(Jcc(cond),lab), Chosen(Alu2(op,a,b)) -> (lnum, Ctl3(CBcc(Ast.rev_cond cond),Imm("0"),b,lab))
+  | Ctl1(Jcc(cond),lab), Unknown -> lnum, Other "    ERROR - cannot convert to prime"
+  | insn,Conflict(lab) -> lnum, Other "    ERROR - cannot join control flow for this"
+  | insn,_ -> (lnum, insn)
 
 (* add a flag_setter to env at label - or check against one already registered *)
 let unify_inbound_flow env (label : string) (flag_setter : generator_info) =
@@ -45,21 +45,21 @@ let operand_conflicts target_op_spec other_insn =
 let rec fill_env_loop env lines (flag_setter : generator_info) =
   let open Ast in
   match lines with
-  | Ok(_, Label(lab)) :: others -> begin
+  | (_, Label(lab)) :: others -> begin
       let resolution = unify_inbound_flow env lab flag_setter in
       fill_env_loop ((lab,resolution) :: env) others resolution
     end
-  | Ok(_, Ctl1(Jcc(_),EaD(lab))) :: others -> begin
+  | (_, Ctl1(Jcc(_),EaD(lab))) :: others -> begin
       let resolution = unify_inbound_flow env lab flag_setter in
       fill_env_loop ((lab,resolution) :: env) others flag_setter
     end
-    | Ok(_, Ctl1(JMP,EaD(lab))) :: others -> begin
+  | (_, Ctl1(JMP,EaD(lab))) :: others -> begin
       let resolution = unify_inbound_flow env lab flag_setter in
       fill_env_loop ((lab,resolution) :: env) others Unknown
     end
-  | Ok(_, Alu2(LEA,_,_)) :: others -> fill_env_loop env others flag_setter
-  | Ok(_, (Alu2(_) as insn)) :: others -> fill_env_loop env others (Chosen(insn))
-  | Ok(_, Ctl1((_),_)) :: others | Ok(_, Ctl0(_)) :: others -> fill_env_loop env others (Unknown : generator_info)
+  | (_, Alu2(LEA,_,_)) :: others -> fill_env_loop env others flag_setter
+  | (_, (Alu2(_) as insn)) :: others -> fill_env_loop env others (Chosen(insn))
+  | (_, Ctl1((_),_)) :: others | (_, Ctl0(_)) :: others -> fill_env_loop env others (Unknown : generator_info)
   | insn :: others -> fill_env_loop env others flag_setter
   | [] -> env
 
@@ -73,7 +73,7 @@ let next_lab_name _ =
 let rec elim_loop env lines flag_setter =
   let open Ast in
   match lines with 
-  | Ok(lnum, insn) as line :: other_lines -> begin
+  | (lnum, insn) as line :: other_lines -> begin
       match insn with
       | Alu2(TEST,_,_) | Alu2(CMP,_,_) -> elim_loop env other_lines (Chosen insn)
       | Alu2(LEA,_,target) -> begin
@@ -85,7 +85,7 @@ let rec elim_loop env lines flag_setter =
       | Alu2(CMOVcc(cc),s,d) -> begin
           let labname = next_lab_name () in
           let lab = Label(labname) in
-          let lines = Ok(lnum, Ctl1(Jcc(Ast.rev_cond cc),EaD(labname))) :: Ok(lnum, Move2(MOV,s,d)) :: Ok(lnum, lab) :: other_lines in
+          let lines = (lnum, Ctl1(Jcc(Ast.rev_cond cc),EaD(labname))) :: (lnum, Move2(MOV,s,d)) :: (lnum, lab) :: other_lines in
           (elim_loop env lines flag_setter)
         end
       | Alu2(_)                        -> line :: (elim_loop env other_lines (Chosen insn))
@@ -94,7 +94,7 @@ let rec elim_loop env lines flag_setter =
           if target.[0] = '.' then
             line :: (elim_loop env other_lines Unknown)
           else
-            [Error ("Cannot handle jmp to function (tail-call?)", (Printer.print_insn insn))]
+            [(lnum, Other ("    ERROR - Cannot handle jmp to function (tail-call?)"))]
         end
       | Ctl1(Jcc(_),EaD(target)) -> begin
           (rewrite_bcc lnum insn flag_setter) :: (elim_loop env other_lines flag_setter)
@@ -106,18 +106,17 @@ let rec elim_loop env lines flag_setter =
         end
       | _ -> line :: (elim_loop env other_lines flag_setter)
     end
-  | line :: other_lines -> line :: (elim_loop env other_lines flag_setter)
   | [] -> []
 ;;
 let print_env oc env =
   let printer x =
     match x with
     | nm,Unknown -> Printf.fprintf oc "%s : Unknown\n" nm
-    | nm,Chosen(insn) -> (Printf.fprintf oc "%s : " nm); (Printer.line_printer oc (Ok(0, insn)))
+    | nm,Chosen(insn) -> (Printf.fprintf oc "%s : " nm); (Printer.line_printer oc insn)
     | nm,Conflict(lab) -> (Printf.fprintf oc "%s : Conflict at %s\n" nm lab)
   in List.iter printer env
 
-let elim_flags (lines : (int * Ast.line, string * string) result list)  =
+let elim_flags lines  =
   let env = fill_env_loop [] lines Unknown in
   elim_loop env lines Unknown
 

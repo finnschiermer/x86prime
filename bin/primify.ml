@@ -20,10 +20,10 @@ let line_mapper line_num line =
     line_num := 1 + !line_num;
     let lexbuf = Lexing.from_string line in
     let p : Ast.line = Parser.aline Lexer.read lexbuf in
-    Ok(!line_num, p)
+    (!line_num, p)
   with
-  | Lexer.Error msg -> Error(msg, line)
-  | _ -> Error("unknown insn", line)
+  | Lexer.Error msg -> (!line_num, Other (msg ^ " : " ^ line))
+  | _ -> (!line_num, Other line)
 ;;
 
 (* Parse list of text blocks into list of ASTs (or error) *)
@@ -49,13 +49,12 @@ let rec print_lines_ordered oc assembled source =
   | ass :: ass_rest, src :: src_rest -> 
       begin
         match ass,src with
-        | Ok(ass_ln, _ ), Ok(src_ln, _) ->
+        | (ass_ln, _ ), (src_ln, _) ->
           begin
             if ass_ln < src_ln then begin print_unpaired_asm oc ass; print_lines_ordered oc ass_rest source end;
             if ass_ln > src_ln then begin print_unpaired_src oc src; print_lines_ordered oc assembled src_rest end;
             if ass_ln = src_ln then begin print_paired oc ass src; print_lines_ordered oc ass_rest src_rest end
           end
-        | _ -> ()
       end
 ;;
 let do_txl = ref true
@@ -82,7 +81,7 @@ let () =
     Lexer.translating := true;
     let source = read !program_name in
     let translated = Translate.translate source in
-    let assembled = Assemble.prepare translated in
+    let assembled = translated (* Assemble.prepare translated *) in
     let oc = open_out ((Filename.chop_suffix !program_name ".s") ^ ".prime") in 
     print_lines_ordered oc assembled source
 

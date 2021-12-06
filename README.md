@@ -187,3 +187,4 @@ Some options:
  * "-help" show list of options. Use this to see options for selecting
    performance model details.
  * "-print_config" show configuration of microarchitecture and memory hierachy
+

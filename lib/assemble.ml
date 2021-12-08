@@ -188,17 +188,18 @@ let assemble_line env line : assem =
       | something -> Source(something)
     end
 
-let should_translate line = true(*
+let should_translate line =
   let open Ast in
   match line with
   | (_, Alu2(_)) | (_, Move2(_)) | (_, Ctl1(_)) | (_, Ctl2(_)) | (_, Ctl0(_)) | (_, Ctl3(_)) 
   | (_, Label(_)) | (_, Quad(_)) | (_, Comm(_)) | (_, Align(_)) -> true
-  | _ -> false
-*)
+  | (_, Ignored(_)) -> false
+  | _ -> true
+
 let print_assembly_line oc line =
   match line with
   | Assembly(a,s,i) -> Printf.fprintf oc "%8s : %-20s  #  " a s; (Printer.line_printer oc i)
-  | Source(i) -> Printf.fprintf oc "NOT PRIME:                #  "; (Printer.line_printer oc i)
+  | Source(i) -> Printf.fprintf oc "NOT PRIME:                       #  "; (Printer.line_printer oc i)
 
 let print_assembly oc lines =
   List.iter (print_assembly_line oc) lines

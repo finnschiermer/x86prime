@@ -64,8 +64,9 @@ let rec rewrite_calls lines =
      (lnum, Ctl2(CALL,target,Reg("%r11"))) :: rewrite_calls others
   | (lnum, Ctl0(RET)) :: others ->
      (lnum, PuPo(POP,Reg("%r11"))) :: (lnum, Ctl1(RET,Reg("%r11"))) :: rewrite_calls others
-  | (lnum, Fun_start) as insn :: others ->
-     insn :: (lnum, PuPo(PUSH,Reg("%r11"))) :: rewrite_calls others
+  | (lnum, Fun_start) :: others ->
+     (lnum, PuPo(PUSH,Reg("%r11"))) :: rewrite_calls others
+  | (lnum, Fun_end) :: others -> rewrite_calls others
   | i :: others -> i :: rewrite_calls others
   | [] -> []
 

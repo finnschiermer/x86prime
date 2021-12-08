@@ -22,7 +22,7 @@ let line_mapper line_num line =
     let p : Ast.line = Parser.aline Lexer.read lexbuf in
     (!line_num, p)
   with
-  | Lexer.Error msg -> (!line_num, Other (msg ^ " : " ^ line))
+  | Lexer.Error _-> (!line_num, Other (" malformed: " ^ line))
   | _ -> (!line_num, Other line)
 ;;
 
@@ -81,7 +81,6 @@ let () =
     Lexer.translating := true;
     let source = read !program_name in
     let translated = Translate.translate source in
-    let assembled = translated (* Assemble.prepare translated *) in
     let oc = open_out ((Filename.chop_suffix !program_name ".s") ^ ".prime") in 
-    print_lines_ordered oc assembled source
+    print_lines_ordered oc translated source
 

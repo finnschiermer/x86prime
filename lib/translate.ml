@@ -99,7 +99,7 @@ let rec txl_instructions lines =
          :: (lnum, Alu2(ADD,Imm(Int64.to_string lo), b)) :: txl_instructions tl
     end
   | (_, Ignored(_))::tl | (_, Directive(_))::tl | (_, Function(_))::tl 
-    | (_,Object(_))::tl | (_, Fun_start) :: tl | (_, Fun_end)::tl -> (txl_instructions tl)
+    | (_,Object(_))::tl (* | (_, Fun_start) :: tl | (_, Fun_end)::tl *) -> (txl_instructions tl)
   | (lnum, Other(s)) :: tl -> (lnum, Other "    ERROR - no prime for this ---> ") :: (txl_instructions tl)
   | insn :: tl -> insn :: (txl_instructions tl)
   | [] -> []
@@ -247,9 +247,8 @@ let join_program functions nonfunctions =
 
 let rec translate_nonfunctions (lines : (int * Ast.line) list) =
   match lines with
-  | (_, Ast.Quad(_)) as insn :: tl 
-  | (_, Ast.Comm(_)) as insn :: tl 
-  | (_, Ast.Align(_)) as insn :: tl -> insn :: (translate_nonfunctions tl)
+  | (_, Ast.Quad(_)) | (_, Ast.Comm(_)) | (_, Ast.Align(_)) as insn :: tl -> 
+      insn :: (translate_nonfunctions tl)
   | other :: tl -> translate_nonfunctions tl
   | [] -> []
 ;;

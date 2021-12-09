@@ -2,6 +2,11 @@
 
 A few tools for our x86 subset, x86prime, known as just "prime"
 
+## Before anything else
+
+Clone this repo into a directory. The rest of this description assumes you've done so
+and are executing commands in said directory.
+
 ## Prerequisites
 
 Install ocaml and opam (ocaml package manager). This installs the default compiler version for the system.

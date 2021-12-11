@@ -2,43 +2,43 @@
 
 <!-- Overvej afhængighed på data skrivning!!! -->
 
-Idéen om out-of-order eksekvering (også kaldet dynamic scheduling) af kode er så gammel som processoren selv. Det er dog ret svært at implementerer, så I mange år fandtes det kun som en mulig program optimering, som nævnt tidligere. Vi skal derfor helt frem til starten af 90'erne før det var en gængs del at mikroprocessorer.
+Idéen om out-of-order eksekvering (også kaldet dynamic scheduling) af kode er så gammel som processoren selv. Det er dog ret svært at implementere, så I mange år fandtes det kun som en mulig program optimering, som nævnt tidligere. Vi skal derfor helt frem til starten af 90'erne før det var en gængs del at mikroprocessorer.
 
 ## Faser i program-rækkefølge - eller ej
 
 Overvej afviklingen i følgende simple superskalar pipeline, hvor
 
-|           | Instruktion  | Faser     | Dataafhængigheder                          |
-| --------- | -----------  | --------  | ------------------------------------------ |
-| Aritmetik | `op  a b`    | `F--XW`   | `depend(X,a), depend(X,b), produce(X,b)`   |
-| Læsning   | `movq (a),b` | `F--XM-W` | `depend(X,a), produce(M+1,b)`              |
-| Skrivning | `movq b,(a)` | `F--XM`   | `depend(X,a), depend(M,b)`                 |
+|           | Instruktion  | Faser       | Dataafhængigheder                          |
+| --------- | -----------  | ----------  | ------------------------------------------ |
+| Aritmetik | `op  a b`    | `F---XW`    | `depend(X,a), depend(X,b), produce(X,b)`   |
+| Læsning   | `movq (a),b` | `F---XM--W` | `depend(X,a), produce(M+2,b)`              |
+| Skrivning | `movq b,(a)` | `F---XM`    | `depend(X,a), depend(M,b)`                 |
 
 * Tilgængelige ressourcer: `F:2`, `X:2`, `M:1`, `W:2`
-* Antal instruktioner under beregning: `F-X: 4`, `M-W: 1`
+* Antal instruktioner under beregning: `F-X: 6`, `M-W: 1`
 
 ~~~
-                 01234567      -- Bemærkning
-movq (r10),r11   F--XM-W       -- produce(M+1,r11)
-addq $100,r11    F-----XW      -- depend(X,r11), stall F til r11 er klar
-movq r9,(r14)     F--XM        -- ingen afhængighed, så hvorfor vente?  <---- BEMÆRK!
-addq $1,r10       F--XW        -- ingen afhængighed
+                 01234567       -- Bemærkning
+movq (r10),r11   F---XM--W      -- produce(M+2,r11)
+addq $100,r11    F-------XW     -- depend(X,r11), stall F til r11 er klar
+movq r9,(r14)     F---XM        -- ingen afhængighed, så hvorfor vente?  <---- BEMÆRK!
+addq $1,r10       F---XW        -- ingen afhængighed
 ~~~
-Bemærk at instruktion nummer 3 og 4 her får sin `X`-fase en clock periode tidligere end instruktionen
+Bemærk at instruktion nummer 3 og 4 her får sin `X`-fase tidligere end instruktionen
 før. På en måde overhaler instruktion nummer 3 og 4 altså instruktion nummer 2.
 
-Det er ikke noget som bryder med antallet af tilgængelige ressourcer i vores superskalar maskine. Vi kan tælle faserne i søjlerne og alt er korrekt. Dog husker vi nu reglen for `inorder(F,D,X,M,W)`, som vi glemt at tage med. For at tjekke den skal vi sikre at faserne i hver søjle er ordnet modsat oppefra og ned. Dette er oplagt ikke tilfældet i clock periode 4 og 5 hvor vi jo ser det to instruktioner har overhalet.
+Det er ikke noget som bryder med antallet af tilgængelige ressourcer i vores superskalar maskine. Vi kan tælle faserne i søjlerne og alt er korrekt. Men vi bryder nu reglen for `inorder(F,D,X,M,W)`, som vi glemte at tage med. For at tjekke den skal vi sikre at faserne i hver søjle er ordnet modsat oppefra og ned. Dette er oplagt ikke tilfældet i clock periode 5 og 6 hvor vi jo ser det to instruktioner har overhalet.
 
 Så for er sikre `inorder(F,D,X,M,W)` er vi nødt til at have:
 ~~~
-                 012345678     -- Bemærkning
-movq (r10),r11   F--XM-W       -- produce(W,r11)
-addq $100,r11    F-----XW      -- depend(X,r11), stall F til r11 er klar
-movq r9,(r14)     F----XM      -- ingen afhængighed, men stall i F for inorder
-addq $1,r10       F-----XW     -- ingen afhængighed, men stall i F
+                 012345678       -- Bemærkning
+movq (r10),r11   F---XM--W       -- produce(W,r11)
+addq $100,r11    F-------XW      -- depend(X,r11), stall F til r11 er klar
+movq r9,(r14)     F------XM      -- ingen afhængighed, men stall i F for inorder
+addq $1,r10       F-------XW     -- ingen afhængighed, men stall i F
 ~~~
 
-Vi kan for dette eksempel kun spare en enkelt clock periode, men vi kan ane at der findes meget mere ydeevne i form af mere parallelisme i udførelsen, hvis vi blot kan afvige fra inorder-kravet i en eller flere faser.
+Dette eksempel antyder at der findes meget mere ydeevne i form af mere parallelisme i udførelsen, hvis vi blot kan afvige fra inorder-kravet i en eller flere faser.
 
 Det har man gjort for "special cases" i mange maskiner gennem årene, men de sidste 20 år er der
 etableret en mere generel "standard model" for out-of-order maskiner
@@ -47,7 +47,7 @@ etableret en mere generel "standard model" for out-of-order maskiner
 
 ### Inorder og out-of-order
 
-I denne model passerer instruktioner først i programrækkefølge gennem en indhentnings-pipeline til de ender i
+I emn out-of-order maskine passerer instruktioner først i programrækkefølge gennem en indhentnings-pipeline til de ender i
 en skeduleringsenhed (scheduler). Derfra kan de udføres uden at overholde programrækkefølgen.
 Efter udførsel placeres resultaterne i en form for kø. Resultaterne udtages fra denne kø og fuldføres
 igen i programrækkefølge. Det gælder såvel for skrivninger til registre, som for skrivninger til lageret.
@@ -68,7 +68,7 @@ adresseberegning med den samme hardware som man bruger til aritmetiske
 instruktioner. I standardmodellen har man i stedet en dedikeret fase til
 adresseberegning, kaldet `A`. Denne skelnen mellem `A` og `X` gør at man kan
 begrænse `A` til at forekomme i instruktionsrækkefølge, mens de andre
-beregninger ikke har den begrænsning.
+eksekveringsfaser ikke har den begrænsning.
 
 Instruktioner der skriver til lageret har et væsentlig mere kompliceret
 forløb i en out-of-order maskine sammenlignet med en inorder maskine.
@@ -81,7 +81,7 @@ der læser fra lageret sammenligne deres adresse med udestående skrivninger
 i skrive-køen, og hvis adressen matcher kan den tilsvarende værdi hentes
 fra skrive-køen. Instruktioner der skriver til lageret kan (skal) indsætte
 deres adresse i skrive-køen selvom den værdi der skal skrives endnu ikke
-er beregnet. Det tidspunkt hvor værdien kopieres til skrive-køen markeres `V`.
+er beregnet. Vi markerer det tidspunkt hvor værdien kopieres til skrive-køen med `V`.
 
 ### En lille out-of-order model
 

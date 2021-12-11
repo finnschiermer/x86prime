@@ -10,7 +10,7 @@ til at bestemme CPI (cycles per instruction), et vigtig mål for en mikroarkitek
 ydeevne for en strøm af instruktioner. (Det andet vigtige mål er selvfølgelig
 maskinens clock-frekvens)
 
-Vi vil lave en gradvis opbygning og langsomt øge kompleksiteten. Dvs. vi starter her med en kort beskrivelse, eksemplificeret på en enkelt-cyklus maskine. Derefter vil vi beskrive, hvordan det fungerer på en [simpel pipeline maskine](pipeline.md), hvilket vil give en dybere forståelse. Derefter vil vi bevæge os over [superskalar arkitekturer](superscalar.md) til en mere [avanceret pipeline mikroarkitektur](anonyme.md). Vi vil her også stifte bekendtskab med kontrol instruktioner.
+Vi vil lave en gradvis opbygning og langsomt øge kompleksiteten. Dvs. vi starter her med en kort beskrivelse, eksemplificeret på en enkelt-cyklus maskine. Derefter vil vi beskrive, hvordan det fungerer på en [simpel pipeline maskine](pipeline.md), hvilket vil give en dybere forståelse. Derefter vil vi bevæge os over [superskalar arkitekturer](superscalar.md) til en mere [avanceret pipeline mikroarkitektur](anonyme.md). Vi vil her også uddybe håndteringen af kontrol instruktioner.
 
 
 
@@ -41,11 +41,11 @@ Hvis vi ønsker at finde denne arkitekturs CPI, kan man gøre dette ved at tæll
 Vi vil hele vejen gennem bruge CPI, som et mål for ydelsen af et program. CPI står for Clocks cycles Per Instruction, altså et mål for hvor mange clock perioder en udførsel af et specifikt program tager.
 Det kan derfor beregnes ved at tælle hvor mange clock perioder det tager for sidste instruktion at blive afsluttet og dele det med antallet af instruktioner. For overstående er det 4 clock perioder delt med 4 instruktioner; altså `CPI = 1`, hvilket måske ikke er overraskende.
 
-Det er dog vigtigt at notere præcist hvad dette betyder. For det første siger det meget lidt om hvordan en specifik arkitektur generelt opfører sig. Det udregner CPI for udførslen af et specifikt program, som måske kan representere en klasse af programmer, men man er nødt til at have meget stor benchmark af mange forskellige programmer for at sige noget generelt om mikroarkitekturen.
+Det er dog vigtigt at notere præcist hvad dette betyder. For det første siger det meget lidt om hvordan en specifik arkitektur generelt opfører sig. Det udregner CPI for udførslen af et specifikt program, som måske kan repræsentere en klasse af programmer, men man er nødt til at have meget stor benchmark af mange forskellige programmer for at sige noget generelt om mikroarkitekturen.
 
 For det andet skal man være påpasselig med sammenligne CPI for et specifikt program mellem forskellige arkitekturer. CPI nævner f.eks. ikke noget om længden på clock perioden. Vi vil stadig gøre det, men er altid nødt til at have overstående med i vores overvejelse.
 
-Det er også vigtigt et noteret at de plots vi laver starter på hvad vi kan kalde en "kold" maskine. Dvs. vores plots vil ikke have nogen instruktioner til at ligge i pipelinen i forvejen. Det kan betyde at især korte programmer vil have en bedre opførsel end hvis vores pipeline var fyldt i forvejen.
+Det er også vigtigt at notere at de plots vi laver starter på hvad vi kan kalde en "kold" maskine. Dvs. vores plots vil ikke have nogen instruktioner til at ligge i pipelinen i forvejen. Det kan betyde at især korte programmer vil have en bedre opførsel end hvis vores pipeline var fyldt i forvejen.
 
 
 &nbsp;

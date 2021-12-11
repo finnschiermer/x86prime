@@ -121,13 +121,13 @@ You request a tracefile by the "-tracefile" option:
 > bin/prun my_program.s my_start_function -tracefile prog.trc
 ~~~
 
-The subdirectory "examples" includes an example C program (bubblesort.c)
+The subdirectory "examples" includes an example C program (insertionsort.c)
 which can be used as introduction to the tools. It has 2 entry-points, "run"
 and "run2". If you use "run" it will silently input an integer from the keyboard.
 If running it seems to just hang, try providing a small number and press enter.
 If you use "run2", it will instead try to access any command line arguments.
 To pass command line arguments into the simulated program, just add them to 
-the command line after all the other arguments. The bubblesort.c program
+the command line after all the other arguments. The insertionsort.c program
 illustrates how the program can access the additional arguments, see the "run2"
 function.
 

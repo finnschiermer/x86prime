@@ -19,10 +19,10 @@ let line_mapper lnum line =
     lnum := 1 + !lnum;
     let lexbuf = Lexing.from_string line in
     let p : Ast.line = Parser.aline Lexer.read lexbuf in
-    Ok(!lnum, p)
+    (!lnum, p)
   with
-  | Lexer.Error msg -> Error(msg, line)
-  | _ -> Error("unknown insn", line)
+  | Lexer.Error _ -> (!lnum, Other line)
+  | _ -> (!lnum, Other line)
 ;;
 
 let parse_lines lines  =
@@ -60,7 +60,7 @@ let () =
   if !program_name <> "" then begin
       Lexer.translating := false;
       let source = read !program_name in
-      let source = Translate.translate source in
+      (* let source = Translate.translate source in *)
       let source = Assemble.prepare source in
       let prog,syms = Assemble.assemble source in
       let oc = open_out ((Filename.chop_suffix !program_name ".prime") ^ ".hex") in 

@@ -11,7 +11,8 @@ let do_show = ref false
 let do_print_config = ref false
 let print_perf = ref false
 
-exception NoValidProgram
+exception InvalidHexFile of string
+exception NoEntryPointsDefined
 exception UnknownEntryPoint of string
 exception InvalidArgument of string
 
@@ -73,7 +74,7 @@ let print_config () =
 
 let run entry =
   match !labels with
-  | None -> raise NoValidProgram
+  | None -> raise NoEntryPointsDefined
   | Some(env) -> begin
       match List.assoc_opt entry env with
       | None -> raise (UnknownEntryPoint entry)
@@ -144,11 +145,12 @@ let get_symbols fname =
       let line = input_line ic in
       symbols := (Scanf.sscanf line "%s : %x" f) :: !symbols
     with
-      _ -> ok := false
+      _ -> close_in ic; ok := false
   done;
   !symbols
 
 let get_hex fname =
+  let lnum = ref 0 in
   let ic = open_in fname in
   let ok = ref true in
   let lines = ref [] in
@@ -156,9 +158,13 @@ let get_hex fname =
   while !ok do
     try
       let line = input_line ic in
-      lines := (Scanf.sscanf line "%x : %[0-9a-fA-F]" f) :: !lines
+      lnum := 1 + !lnum;
+      try
+        lines := (Scanf.sscanf line "%x : %[0-9a-fA-F]" f) :: !lines
+      with
+      | _ -> raise (InvalidHexFile ("at line " ^ (string_of_int !lnum) ^ ": \n'" ^ line ^ "'"))
     with
-      _ -> ok := false
+    | End_of_file -> close_in ic; ok := false
   done;
   !lines
 

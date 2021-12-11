@@ -74,24 +74,14 @@ let print_insn insn =
   | Object(s) -> Printf.sprintf "    .type %s, @object" s
   | Fun_start -> Printf.sprintf "    .cfi_startproc"
   | Fun_end -> Printf.sprintf "    .cfi_endproc"
-  | Other(s) -> Printf.sprintf "Other %s" s
+  | Other(s) -> s
 
-let line_printer oc line =
-  match line with
-  | Ok(_, insn) -> Printf.fprintf oc "%s\n" (print_insn insn)
-  | Error(a,b) -> Printf.fprintf oc "ERROR: %s : %s\n" a b
+let line_printer oc line = Printf.fprintf oc "%s\n" (print_insn line)
 
-let print_unpaired_asm oc asm = 
-  match asm with
-  | Ok(_, insn) -> Printf.fprintf oc "%-40s\t#\n" (print_insn insn)
-  | Error(a,b) -> Printf.fprintf oc "ERROR: %-40s : %-40s\t#\n" a b
+let print_unpaired_asm oc (_, asm) = Printf.fprintf oc "%-40s\t#\n" (print_insn asm)
 
-let print_unpaired_src oc src = 
-  match src with
-  | Ok(_, insn) -> Printf.fprintf oc "%-40s\t# %s\n" "" (print_insn insn)
-  | Error(a,b) -> Printf.fprintf oc "%-40s\t# ERROR: %s : %s\n" "" a b
+let print_unpaired_src oc (_, src) = Printf.fprintf oc "%-40s\t# %s\n" "" (print_insn src)
 
 let print_paired oc asm src =
   match asm,src with
-  | Ok(_, i1), Ok(_, i2) -> Printf.fprintf oc "%-40s\t# %-40s\n" (print_insn i1) (print_insn i2)
-  | _ -> Printf.printf "MEH!!!\n"
+ (_, i1), (_, i2) -> Printf.fprintf oc "%-40s\t# %-40s\n" (print_insn i1) (print_insn i2)

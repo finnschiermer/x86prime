@@ -42,7 +42,7 @@ let dec_latency = ref 1
 let pipe_width = ref 1
 let ooo = ref false
 let profile = ref false
-
+let ooo_size = ref 128
 let print_cache_config assoc idx_bits blk_bits latency =
   let size = assoc lsl (idx_bits + blk_bits) in
   Printf.printf "    Size %d bytes\n" size;
@@ -52,7 +52,10 @@ let print_cache_config assoc idx_bits blk_bits latency =
 
 let print_config () =
   Printf.printf "Performance model configuration\n";
-  if !ooo then Printf.printf "  Out-of-order execution\n" else Printf.printf "  In-order execution\n";
+  if !ooo then
+    Printf.printf "  Out-of-order execution with windows size = %d\n" !ooo_size
+  else 
+    Printf.printf "  In-order execution\n";
   Printf.printf "  Pipeline width %d insn/clk\n" !pipe_width;
   Printf.printf "  Branch predictor %s\n" (match !p_type with
     | "t" -> "always taken"
@@ -101,7 +104,7 @@ let run entry =
                   d = Cache.cache_create !d_idx_bits !d_blk_bits !d_assoc !d_latency (Cache l2);
                   fetch_start = Resource.create "fetch-start" true !pipe_width 1000;
                   fetch_decode_q = Resource.create "fetch-decode" true fd_queue_size 10000;
-                  rob = Resource.create "reorder buffer" true 128 10000;
+                  rob = Resource.create "reorder buffer" true !ooo_size 10000;
                   alu = alu_resource;
                   agen = if !ooo then Resource.create "agen" true 1 1000 else alu_resource;
                   branch = if !ooo then Resource.create "branch-resolver" true 1 1000 else alu_resource;
@@ -117,7 +120,7 @@ let run entry =
               if !print_perf then begin
                 let tries,miss = Predictors.predictor_get_results p_control.bp in
                 let mr = (float_of_int miss) /. (float_of_int (tries)) in
-                Printf.printf "\nBranch predictions: %8d   miss %8d    missrate: %f\n" tries miss mr;
+                Printf.printf "\n\nBranch predictions: %8d   miss %8d    missrate: %f\n" tries miss mr;
                 let tries,miss = Predictors.predictor_get_results p_control.rp in
                 let mr = (float_of_int miss) /. (float_of_int (tries)) in
                 Printf.printf "Return predictions: %8d   miss %8d    missrate: %f\n" tries miss mr;
@@ -131,7 +134,7 @@ let run entry =
                 let mr = (float_of_int m) /. (float_of_int (r+w)) in
                 Printf.printf "D-Cache reads:  %8d   writes: %8d   miss: %8d   missrate: %f\n" r w m mr;
                 let finished = Resource.get_earliest p_control.retire in
-                Printf.printf "Execution finished at cycle %d (CPI = %f)\n" finished 
+                Printf.printf "Execution finished after %d insn at cycle %d (CPI = %f)\n" r_i finished 
                               ((float_of_int finished) /. (float_of_int r_i))
               end
         end
@@ -194,6 +197,7 @@ let cmd_spec = [
     ("-dec_lat", Arg.Set_int dec_latency, "<latency> latency of decode stages");
     ("-pipe_width", Arg.Set_int pipe_width, "<width> max number of insn fetched/clk");
     ("-ooo", Arg.Set ooo, "enable out-of-order scheduling");
+    ("-ooo_sz", Arg.Set_int ooo_size, "size of out-of-order scheduling window");
     ("-profile", Arg.Set profile, "print an execution profile");
     ("-pipe", Arg.Set_string set_pipe, "simple/super/ooo select base pipeline configuration");
     ("-mem", Arg.Set_string set_mem, "magic/real select base memory configuration");

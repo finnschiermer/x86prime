@@ -15,7 +15,7 @@ type page = bytes
 let get_page mem page_addr =
   match Hashtbl.find_opt mem page_addr with
   | Some(page) -> page
-  | None -> if (Hashtbl.length mem > 10000) then
+  | None -> if (Hashtbl.length mem > 100000) then
               raise OutOfSimulatedMemory
             else
               let page = (Bytes.make 1024 (Char.chr 0)) in

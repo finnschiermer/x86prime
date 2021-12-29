@@ -113,7 +113,7 @@ let predict_and_train predictor pc target taken : bool =
     end
   | PredGShare(pred_state) -> begin
       let mask = (Array.length pred_state.predictors) - 1 in
-      let index = pred_state.history lxor (pc land mask) in
+      let index = (pred_state.history lxor pc) land mask in
       let predictor_state = pred_state.predictors.(index) in
       let prediction = make_prediction predictor_state in
       pred_state.predictors.(index) <- next_predictor_state predictor_state taken;

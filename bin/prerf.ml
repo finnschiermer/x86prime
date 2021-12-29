@@ -1,13 +1,13 @@
 open Prime
 ;;
 
-let machine = ref (Machine.create ())
 let labels = ref None
 let program_name = ref ""
 let tracefile_name = ref ""
 let args = ref []
 let entry_name = ref ""
-let do_show = ref false
+let do_show = ref (-1)
+let exec_limit = ref (-1)
 let do_print_config = ref false
 let print_perf = ref true
 
@@ -75,16 +75,17 @@ let print_config () =
   print_cache_config !l2_assoc !l2_idx_bits !l2_blk_bits !l2_latency;
   Printf.printf "  Main memory %d cycles away\n" !mem_latency
 
-let run entry =
+let prepare machine entry =
   match !labels with
   | None -> raise NoValidProgram
   | Some(env) -> begin
       match List.assoc_opt entry env with
       | None -> raise (UnknownEntryPoint entry)
       | Some(addr) -> begin
-              Machine.set_ip !machine addr;
+              Machine.set_ip machine addr;
               let l2 = Cache.cache_create !l2_idx_bits !l2_blk_bits !l2_assoc !l2_latency (MainMemory !mem_latency) in
               let num_alus = if !ooo && !pipe_width > 2 then !pipe_width - 1 else !pipe_width in
+              let num_mem = if !pipe_width > 2 then !pipe_width / 2 else 1 in
               let id_latency = (!i_latency + !dec_latency) in
               let fd_queue_size = id_latency * !pipe_width in
               let alu_resource = Resource.create "arithmetic" (not !ooo) num_alus 1000 in
@@ -106,9 +107,9 @@ let run entry =
                   fetch_decode_q = Resource.create "fetch-decode" true fd_queue_size 10000;
                   rob = Resource.create "reorder buffer" true !ooo_size 10000;
                   alu = alu_resource;
-                  agen = if !ooo then Resource.create "agen" true 1 1000 else alu_resource;
+                  agen = if !ooo then Resource.create "agen" (not !ooo) num_mem 1000 else alu_resource;
                   branch = if !ooo then Resource.create "branch-resolver" true 1 1000 else alu_resource;
-                  dcache = Resource.create "dcache" (not !ooo) 1 1000;
+                  dcache = Resource.create "dcache" (not !ooo) num_mem 1000;
                   retire = Resource.create "retire" true !pipe_width 1000;
                   reg_ready = Array.make 16 0;
                   dec_lat = !dec_latency;
@@ -116,29 +117,38 @@ let run entry =
                   perf_model = true;
                   profile = !profile;
                 } in
-              Machine.run p_control !machine;
-              if !print_perf then begin
-                let tries,miss = Predictors.predictor_get_results p_control.bp in
-                let mr = (float_of_int miss) /. (float_of_int (tries)) in
-                Printf.printf "\n\nBranch predictions: %8d   miss %8d    missrate: %f\n" tries miss mr;
-                let tries,miss = Predictors.predictor_get_results p_control.rp in
-                let mr = (float_of_int miss) /. (float_of_int (tries)) in
-                Printf.printf "Return predictions: %8d   miss %8d    missrate: %f\n" tries miss mr;
-                let r,w,m = Cache.cache_get_stats p_control.l2 in
-                let mr = (float_of_int m) /. (float_of_int (r+w)) in
-                Printf.printf "L2-Cache reads: %8d   writes: %8d   miss: %8d   missrate: %f\n" r w m mr;
-                let r_i,w,m = Cache.cache_get_stats p_control.i in
-                let mr = (float_of_int m) /. (float_of_int (r_i+w)) in
-                Printf.printf "I-Cache reads:  %8d   writes: %8d   miss: %8d   missrate: %f\n" r_i w m mr;
-                let r,w,m = Cache.cache_get_stats p_control.d in
-                let mr = (float_of_int m) /. (float_of_int (r+w)) in
-                Printf.printf "D-Cache reads:  %8d   writes: %8d   miss: %8d   missrate: %f\n" r w m mr;
-                let finished = Resource.get_earliest p_control.retire in
-                Printf.printf "Execution finished after %d insn at cycle %d (CPI = %f)\n" r_i finished 
-                              ((float_of_int finished) /. (float_of_int r_i))
-              end
-        end
+              p_control
+          end
     end
+        ;;
+let print_summary (p_control : Machine.perf) = begin
+  if !print_perf then begin
+    let tries,miss = Predictors.predictor_get_results p_control.bp in
+    let mr = (float_of_int miss) /. (float_of_int (tries)) in
+    Printf.printf "\n\nBranch predictions: %8d   miss %8d    missrate: %f\n" tries miss mr;
+    let tries,miss = Predictors.predictor_get_results p_control.rp in
+    let mr = (float_of_int miss) /. (float_of_int (tries)) in
+    Printf.printf "Return predictions: %8d   miss %8d    missrate: %f\n" tries miss mr;
+    let r,w,m = Cache.cache_get_stats p_control.l2 in
+    let mr = (float_of_int m) /. (float_of_int (r+w)) in
+    Printf.printf "L2-Cache reads: %8d   writes: %8d   miss: %8d   missrate: %f\n" r w m mr;
+    let r_i,w,m = Cache.cache_get_stats p_control.i in
+    let mr = (float_of_int m) /. (float_of_int (r_i+w)) in
+    Printf.printf "I-Cache reads:  %8d   writes: %8d   miss: %8d   missrate: %f\n" r_i w m mr;
+    let r,w,m = Cache.cache_get_stats p_control.d in
+    let mr = (float_of_int m) /. (float_of_int (r+w)) in
+    Printf.printf "D-Cache reads:  %8d   writes: %8d   miss: %8d   missrate: %f\n" r w m mr;
+    let finished = Resource.get_earliest p_control.retire in
+    Printf.printf "Execution finished after %d insn at cycle %d (CPI = %f)\n" r_i finished 
+                  ((float_of_int finished) /. (float_of_int r_i))
+  end
+end
+
+let run machine entry =
+  let p_control = prepare machine entry in
+  Machine.run p_control machine;
+  print_summary p_control
+
 
 let set_pipe = ref ""
 let set_mem = ref ""
@@ -177,7 +187,8 @@ let process_a3_options _ =
   end
 
 let cmd_spec = [
-    ("-show", Arg.Set do_show, "show each simulation step");
+    ("-show", Arg.Set_int do_show, "after <num> insn, show each simulation step");
+    ("-limit", Arg.Set_int exec_limit, "limit number of simulated instructions");
     ("-bp_type", Arg.Set_string p_type, "t/nt/btfnt/oracle/local/gshare select type of branch predictor");
     ("-bp_size", Arg.Set_int p_idx_size, "<size> select number of bits used to index branch predictor");
     ("-rp_size", Arg.Set_int p_ret_size, "<size> select number of entries in return predictor");
@@ -248,13 +259,21 @@ let () =
   if !do_print_config then print_config ();
   if !program_name <> "" then begin
     let hex = get_hex !program_name in
-    machine := Machine.init hex;
-    if !tracefile_name <> "" then Machine.set_tracefile !machine (open_out !tracefile_name);
-    if !do_show then Machine.set_show !machine;
+    let machine = Machine.init hex in
+    if !tracefile_name <> "" then Machine.set_tracefile machine (open_out !tracefile_name);
     if !entry_name <> "" then begin
       labels := Some (get_symbols ((Filename.chop_suffix !program_name ".hex") ^ ".sym"));
-      Machine.set_args !machine !args;
-      run !entry_name
+      let p_control = prepare machine !entry_name in
+      Machine.set_args machine !args;
+      if !do_show > 0 then begin
+        Machine.set_limit machine !do_show;
+        Machine.runloop p_control machine;
+      end;
+      if !do_show > (-1) then Machine.set_show machine;
+      Machine.set_limit machine !exec_limit;
+      if Machine.is_running machine then Machine.runloop p_control machine;
+      Machine.cleanup p_control machine;
+      print_summary p_control
     end else raise (InvalidArgument "no valid start-label")
   end
   else Printf.printf "No program, doing nothing :-)\n"

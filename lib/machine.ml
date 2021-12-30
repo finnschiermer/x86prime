@@ -495,12 +495,12 @@ let disas_inst state =
 
 let terminate_output state = if state.show then align_output state
 
-let model_fetch_decode perf state =
+let model_fetch_decode_queue perf state =
   let start = Resource.acquire perf.fetch_start 0 in
   let start = Resource.acquire perf.fetch_decode_q start in
   let got_inst = Cache.cache_read perf.i state.ip start in
   let decoded = got_inst + perf.dec_lat in
-  let rob_entry = Resource.acquire perf.rob (decoded) in
+  let rob_entry = Resource.acquire perf.rob decoded in
   Resource.use perf.fetch_start start (start + 1);
   Resource.use perf.fetch_decode_q start rob_entry;
   add_event state 'F' start;
@@ -509,7 +509,7 @@ let model_fetch_decode perf state =
   rob_entry
 
 let model_return perf state rs =
-  let rob_entry = model_fetch_decode perf state in
+  let rob_entry = model_fetch_decode_queue perf state in
   let ready = max perf.reg_ready.(rs) (rob_entry + 3) in
   let exec_start = Resource.acquire perf.branch ready in
   let time_retire = Resource.acquire perf.retire (exec_start + 2) in
@@ -531,7 +531,7 @@ let model_return perf state rs =
   if perf.ooo then add_event state 'C' time_retire
 
 let model_call perf state rd addr =
-  let rob_entry = model_fetch_decode perf state in
+  let rob_entry = model_fetch_decode_queue perf state in
   let time_retire = Resource.acquire perf.retire (rob_entry + 5) in
   Predictors.note_call perf.rp (Int64.to_int addr);
   Resource.use_all perf.fetch_start (Resource.get_earliest perf.fetch_start + 1);
@@ -543,18 +543,15 @@ let model_call perf state rd addr =
   perf.reg_ready.(rd) <- rob_entry + 1
 
 let model_jmp perf state =
-  let rob_entry = model_fetch_decode perf state in
-  let exec_start = Resource.acquire perf.branch (rob_entry + 3) in
-  let time_retire = Resource.acquire perf.retire (exec_start + 2) in
+  let rob_entry = model_fetch_decode_queue perf state in
+  let time_retire = Resource.acquire perf.retire (rob_entry + 5) in
   Resource.use_all perf.fetch_start (Resource.get_earliest perf.fetch_start + 1);
-  Resource.use perf.branch exec_start (exec_start + 1);
   Resource.use perf.retire time_retire (time_retire + 1);
   Resource.use perf.rob rob_entry time_retire;
-  add_event state 'B' exec_start;
   if perf.ooo then add_event state 'C' time_retire
 
 let model_nop perf state =
-  let rob_entry = model_fetch_decode perf state in
+  let rob_entry = model_fetch_decode_queue perf state in
   let exec_start = Resource.acquire perf.alu (rob_entry + 3) in
   let time_retire = Resource.acquire perf.retire (exec_start + 2) in
   Resource.use perf.rob rob_entry time_retire;
@@ -562,7 +559,7 @@ let model_nop perf state =
   Resource.use perf.retire time_retire (time_retire + 1)
 
 let model_cond_branch perf state from_ip to_ip taken ops_ready =
-  let rob_entry = model_fetch_decode perf state in
+  let rob_entry = model_fetch_decode_queue perf state in
   let ready = max (rob_entry + 3) ops_ready in
   let exec_start = Resource.acquire perf.branch ready in
   let exec_done = exec_start + 1 in
@@ -582,7 +579,7 @@ let model_cond_branch perf state from_ip to_ip taken ops_ready =
   if perf.ooo then add_event state 'C' time_retire
 
 let model_compute perf state rd ops_ready latency =
-  let rob_entry = model_fetch_decode perf state in
+  let rob_entry = model_fetch_decode_queue perf state in
   let ready = max (rob_entry + 3) ops_ready in
   let exec_start = Resource.acquire perf.alu ready in
   let exec_done = exec_start + latency in
@@ -608,7 +605,7 @@ let model_mul_reg perf state rd rs = model_compute perf state rd (max perf.reg_r
 
 let model_store perf state rd rs addr =
   let ops_ready = perf.reg_ready.(rs) in
-  let rob_entry = model_fetch_decode perf state in
+  let rob_entry = model_fetch_decode_queue perf state in
   let ready = max (rob_entry + 3) ops_ready in
   let agen_start = Resource.acquire perf.agen ready in
   let agen_done = agen_start + 1 in
@@ -624,12 +621,12 @@ let model_store perf state rd rs addr =
   add_event state 's' (agen_start - 2);
   add_event state 'r' (agen_start - 1);
   add_event state 'A' agen_start;
-  add_event state 'V' access_start;
+  add_event state 'M' access_start;
   if perf.ooo then add_event state 'C' time_retire
 
 let model_load perf state rd rs addr =
   let ops_ready = perf.reg_ready.(rs) in
-  let rob_entry = model_fetch_decode perf state in
+  let rob_entry = model_fetch_decode_queue perf state in
   let ready = max (rob_entry + 3) ops_ready in
   let agen_start = Resource.acquire perf.agen ready in
   let agen_done = agen_start + 1 in
@@ -643,7 +640,7 @@ let model_load perf state rd rs addr =
   add_event state 's' (agen_start - 2);
   add_event state 'r' (agen_start - 1);
   add_event state 'A' agen_start;
-  add_event state 'L' access_start;
+  add_event state 'M' access_start;
   add_event state 'w' data_ready;
   state.info.exe_latency <- state.info.exe_latency + (data_ready - agen_start);
   if perf.ooo then add_event state 'C' time_retire;

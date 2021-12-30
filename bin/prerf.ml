@@ -37,18 +37,22 @@ let l2_latency = ref 12
 
 let mem_latency = ref 100
 
-
-let dec_latency = ref 1
 let pipe_width = ref 1
 let ooo = ref false
 let profile = ref false
-let ooo_size = ref 128
+let ooo_size = ref 512
 let print_cache_config assoc idx_bits blk_bits latency =
   let size = assoc lsl (idx_bits + blk_bits) in
   Printf.printf "    Size %d bytes\n" size;
   Printf.printf "    Associativity %d\n" assoc;
   Printf.printf "    Block-size %d bytes\n" (1 lsl blk_bits);
   Printf.printf "    Hit latency %d\n" latency
+
+let get_dec_lat = function
+  | 1 -> 1
+  | 2 | 3 -> 2
+  | 4 | 5 -> 3
+  | _ -> 4
 
 let print_config () =
   Printf.printf "Performance model configuration\n";
@@ -66,7 +70,7 @@ let print_config () =
     | "gshare" -> "gshare (PC xor History indexed)"
     | _ -> "");
   Printf.printf "  Return predictor with %d entries\n" !p_ret_size;
-  Printf.printf "  Decode/schedule latency %d stages\n" !dec_latency;
+  Printf.printf "  Decode/schedule latency %d stages\n" (get_dec_lat !pipe_width);
   Printf.printf "  Data-cache configuration\n";
   print_cache_config !d_assoc !d_idx_bits !d_blk_bits !d_latency;
   Printf.printf "  Instruction-cache configuration\n";
@@ -86,7 +90,8 @@ let prepare machine entry =
               let l2 = Cache.cache_create !l2_idx_bits !l2_blk_bits !l2_assoc !l2_latency (MainMemory !mem_latency) in
               let num_alus = if !ooo && !pipe_width > 2 then !pipe_width - 1 else !pipe_width in
               let num_mem = if !pipe_width > 2 then !pipe_width / 2 else 1 in
-              let id_latency = (!i_latency + !dec_latency) in
+              let dec_latency = get_dec_lat !pipe_width in
+              let id_latency = (!i_latency + dec_latency) in
               let fd_queue_size = id_latency * !pipe_width in
               let alu_resource = Resource.create "arithmetic" (not !ooo) num_alus 1000 in
               let p_control : Machine.perf = {
@@ -112,7 +117,7 @@ let prepare machine entry =
                   dcache = Resource.create "dcache" (not !ooo) num_mem 1000;
                   retire = Resource.create "retire" true !pipe_width 1000;
                   reg_ready = Array.make 16 0;
-                  dec_lat = !dec_latency;
+                  dec_lat = dec_latency;
                   ooo = !ooo;
                   perf_model = true;
                   profile = !profile;
@@ -157,20 +162,6 @@ exception UnimplementedOption of string
 
 let process_a3_options _ = 
   begin
-    match !set_pipe with
-    | "" | "simple" -> ()
-    | "super" -> begin
-        dec_latency := 3;
-        pipe_width := 3;
-      end
-    | "ooo" -> begin
-        ooo := true;
-        dec_latency := 5;
-        pipe_width := 3;
-      end
-    | _ -> raise (UnimplementedOption ("-pipe " ^ !set_pipe))
-  end;
-  begin
     match !set_mem with
     | "" | "real" -> ()
     | "magic" -> begin
@@ -205,12 +196,10 @@ let cmd_spec = [
     ("-l2_lat", Arg.Set_int l2_latency, "<latency> latency of L2 cache read");
     ("-l2_idx_sz", Arg.Set_int l2_idx_bits, "<size> number of bits used for indexing L2 cache");
     ("-l2_blk_sz", Arg.Set_int l2_blk_bits, "<size> number of bits used to address byte in block of L2 cache");
-    ("-dec_lat", Arg.Set_int dec_latency, "<latency> latency of decode stages");
-    ("-pipe_width", Arg.Set_int pipe_width, "<width> max number of insn fetched/clk");
+    ("-width", Arg.Set_int pipe_width, "<width> max number of insn/clk");
     ("-ooo", Arg.Set ooo, "enable out-of-order scheduling");
     ("-ooo_sz", Arg.Set_int ooo_size, "size of out-of-order scheduling window");
     ("-profile", Arg.Set profile, "print an execution profile");
-    ("-pipe", Arg.Set_string set_pipe, "simple/super/ooo select base pipeline configuration");
     ("-mem", Arg.Set_string set_mem, "magic/real select base memory configuration");
     ("-print_config", Arg.Set do_print_config, "print detailed performance model configuration")
   ]
@@ -265,13 +254,15 @@ let () =
       labels := Some (get_symbols ((Filename.chop_suffix !program_name ".hex") ^ ".sym"));
       let p_control = prepare machine !entry_name in
       Machine.set_args machine !args;
+      let running = ref true in
       if !do_show > 0 then begin
         Machine.set_limit machine !do_show;
         Machine.runloop p_control machine;
+        running := Machine.is_running machine
       end;
       if !do_show > (-1) then Machine.set_show machine;
       Machine.set_limit machine !exec_limit;
-      if Machine.is_running machine then Machine.runloop p_control machine;
+      if !running then Machine.runloop p_control machine;
       Machine.cleanup p_control machine;
       print_summary p_control
     end else raise (InvalidArgument "no valid start-label")
